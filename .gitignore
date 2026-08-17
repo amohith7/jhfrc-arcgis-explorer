@@ -1,0 +1,45 @@
+# Credentials
+*.env
+.env.*
+*credentials*
+*secret*
+*token*
+*api_key*
+*.pem
+*.key
+.netrc
+~/.arcgis/
+
+# Generated artifacts
+data/*.parquet
+data/*.csv
+data/*.sqlite
+data/*.shp
+data/*.shx
+data/*.dbf
+data/*.prj
+data/*.cpg
+data/*.gpkg
+data/*.geojson
+data/*.zip
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.pytest_cache/
+.venv/
+venv/
+.mypy_cache/
+.ruff_cache/
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+*.swp
+
+# Logs
+logs/
+*.log

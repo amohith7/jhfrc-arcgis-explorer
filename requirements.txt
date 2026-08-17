@@ -1,0 +1,21 @@
+# JHFRC ArcGIS Explorer — Python dependencies
+# Python 3.9+
+
+# Data wrangling
+pandas>=2.0
+numpy>=1.24
+openpyxl>=3.1          # Excel workbook writer for optional workbook export
+lxml>=4.9              # Fast XML parsing for per-county output aggregation
+
+# Geospatial
+geopandas>=0.14
+shapely>=2.0
+pyogrio>=0.7           # Fast Shapefile / GPKG I/O
+fiona>=1.9             # Shapefile / GPKG fallback if pyogrio missing
+
+# ArcGIS Online publishing
+arcgis>=2.3            # Esri Python API; brings in ipykernel, keyring, etc.
+
+# Storage formats
+pyarrow>=14            # Parquet writer
+# sqlite3 is stdlib
