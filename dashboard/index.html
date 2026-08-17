@@ -325,56 +325,39 @@
   <script>
     // ─────────────────────────────────────────────────────────────────────
     // Configuration
+    // Only the 21 indicators that actually exist as fields in the
+    // published Feature Layer (from build_arcgis_layer.py's wide_pivot).
     const INDICATORS = [
       { id: 'pov_below',  label: 'Below Poverty Line (%)',              domain: 'Economic',   higherIsWorse: true  },
       { id: 'mhi',        label: 'Median Household Income ($)',         domain: 'Economic',   higherIsWorse: false },
       { id: 'mpci',       label: 'Mean Per Capita Income ($)',          domain: 'Economic',   higherIsWorse: false },
-      { id: 'gini',       label: 'Gini Index',                          domain: 'Economic',   higherIsWorse: true  },
       { id: 'emp_adults', label: 'Employed Adults (%)',                 domain: 'Economic',   higherIsWorse: false },
-      { id: 'not_labor',  label: 'Not in the Labor Force (%)',          domain: 'Economic',   higherIsWorse: true  },
       { id: 'hh_snap',    label: 'Receiving SNAP (%)',                  domain: 'Economic',   higherIsWorse: true  },
       { id: 'hh_pubasst', label: 'Public Assistance (%)',               domain: 'Economic',   higherIsWorse: true  },
-      { id: 'edu_lths',   label: 'Less Than HS Education (%)',          domain: 'Education',  higherIsWorse: true  },
       { id: 'edu_posths', label: 'Post-HS Education (%)',               domain: 'Education',  higherIsWorse: false },
       { id: 'edu_ba',     label: "Bachelor's Degree (%)",               domain: 'Education',  higherIsWorse: false },
-      { id: 'edu_grad',   label: 'Graduate/Prof Degree (%)',            domain: 'Education',  higherIsWorse: false },
-      { id: 'youth_dis',  label: 'Youth Disconnection (%)',             domain: 'Education',  higherIsWorse: true  },
       { id: 'any_disab',  label: 'Any Disability (%)',                  domain: 'Healthcare', higherIsWorse: true  },
-      { id: 'no_insur',   label: 'No Health Insurance (%)',             domain: 'Healthcare', higherIsWorse: true  },
       { id: 'hh_diab',    label: 'Diabetes (%)',                        domain: 'Healthcare', higherIsWorse: true  },
       { id: 'hh_asthma',  label: 'Asthma (%)',                          domain: 'Healthcare', higherIsWorse: true  },
       { id: 'hh_heart',   label: 'Heart Disease (%)',                   domain: 'Healthcare', higherIsWorse: true  },
       { id: 'hh_bp',      label: 'BP Medication (%)',                   domain: 'Healthcare', higherIsWorse: true  },
-      { id: 'ph_poor14',  label: '≥14 Days Poor Physical Health (%)',   domain: 'Healthcare', higherIsWorse: true  },
-      { id: 'mh_poor14',  label: '≥14 Days Poor Mental Health (%)',     domain: 'Healthcare', higherIsWorse: true  },
       { id: 'smoke',      label: 'Smoking (%)',                         domain: 'Healthcare', higherIsWorse: true  },
       { id: 'no_activ',   label: 'No Leisure Physical Activity (%)',    domain: 'Healthcare', higherIsWorse: true  },
       { id: 'obesity',    label: 'Obesity (%)',                         domain: 'Healthcare', higherIsWorse: true  },
-      { id: 'bb_access',  label: 'Broadband Access (%)',                domain: 'Infrastructure', higherIsWorse: false },
-      { id: 'no_intnet',  label: 'No Internet Access (%)',              domain: 'Infrastructure', higherIsWorse: true  },
       { id: 'med_rent',   label: 'Median Gross Rent ($)',               domain: 'Infrastructure', higherIsWorse: null  },
       { id: 'med_home',   label: 'Median Home Value ($)',               domain: 'Infrastructure', higherIsWorse: null  },
-      { id: 'cost_burd',  label: 'Housing Cost Burden (%)',             domain: 'Infrastructure', higherIsWorse: true  },
-      { id: 'owner_occ',  label: 'Owner-Occupied (%)',                  domain: 'Infrastructure', higherIsWorse: null  },
       { id: 'vacant',     label: 'Vacant Housing (%)',                  domain: 'Infrastructure', higherIsWorse: true  },
-      { id: 'no_veh',     label: 'No Vehicle (%)',                      domain: 'Infrastructure', higherIsWorse: true  },
       { id: 'transit',    label: 'Public Transit Commuters (%)',        domain: 'Infrastructure', higherIsWorse: false },
-      { id: 'age_u18',    label: 'Population Under 18 (%)',             domain: 'Social',     higherIsWorse: null  },
-      { id: 'age_65p',    label: 'Population 65+ (%)',                  domain: 'Social',     higherIsWorse: null  },
       { id: 'med_age',    label: 'Median Age',                          domain: 'Social',     higherIsWorse: null  },
-      { id: 'single_p',   label: 'Single-Parent Households (%)',        domain: 'Social',     higherIsWorse: true  },
-      { id: 'live_alon',  label: 'Living Alone (%)',                    domain: 'Social',     higherIsWorse: null  },
-      { id: 'foreign',    label: 'Foreign Born (%)',                    domain: 'Social',     higherIsWorse: null  },
-      { id: 'lang_span',  label: 'Speak Spanish at Home (%)',           domain: 'Social',     higherIsWorse: null  },
     ];
 
-    const CORR_INDICATORS = ['pov_below','mhi','edu_ba','no_insur','obesity','hh_diab','bb_access','cost_burd','no_veh','youth_dis'];
+    const CORR_INDICATORS = ['pov_below','mhi','edu_ba','emp_adults','hh_snap','obesity','hh_diab','any_disab','smoke','vacant'];
 
     const LAYER_URL = 'https://services.arcgis.com/UnTXoPXBYERF0OH6/arcgis/rest/services/jhfrc_census_tracts/FeatureServer/0';
 
     const state = {
       features: [], counties: new Set(),
-      indA: 'pov_below', indB: 'no_insur',
+      indA: 'pov_below', indB: 'edu_ba',
       charts: {}, mapView: null, layer: null,
     };
 
