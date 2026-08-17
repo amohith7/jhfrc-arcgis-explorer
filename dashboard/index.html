@@ -387,12 +387,24 @@
     }
 
     async function fetchFeatures() {
-      const fields = ['tract_geoid','county_name',
-                      ...INDICATORS.map(i => i.id),
-                      ...INDICATORS.map(i => i.id + '_d5')].join(',');
-      const url = `${LAYER_URL}/query?where=1%3D1&outFields=${fields}&f=json&resultRecordCount=2000`;
+      // Step 1: discover the actual fields on the layer so we never
+      // request a column that doesn't exist (FeatureServer returns HTTP
+      // 400 on any unknown outField, killing the whole query).
+      const schemaResp = await fetch(`${LAYER_URL}?f=json`);
+      const schema = await schemaResp.json();
+      const existing = new Set((schema.fields || []).map(f => f.name));
+      const desired = ['tract_geoid','county_name',
+                       ...INDICATORS.map(i => i.id),
+                       ...INDICATORS.map(i => i.id + '_d5')];
+      const fields = desired.filter(f => existing.has(f));
+      const missing = desired.filter(f => !existing.has(f));
+      if (missing.length) {
+        console.warn(`Skipping ${missing.length} missing fields:`, missing);
+      }
+      const url = `${LAYER_URL}/query?where=1%3D1&outFields=${fields.join(',')}&f=json&resultRecordCount=2000`;
       const r = await fetch(url);
       const data = await r.json();
+      if (data.error) throw new Error(`Layer query failed: ${data.error.message}`);
       state.features = (data.features || []).map(f => f.attributes);
       for (const f of state.features) if (f.county_name) state.counties.add(f.county_name);
       document.getElementById('status').textContent = `${state.features.length} tracts · ${state.counties.size} counties`;
