@@ -101,9 +101,28 @@ jhfrc-arcgis-explorer/
 ├── build_rollout_dataset.py       Scans reports output/, emits Tier 1 dataset
 ├── build_arcgis_layer.py          Joins dataset to TIGER polygons -> Shapefile
 ├── publish_to_arcgis.py           Uploads Feature Layer to ArcGIS Online
+├── dashboard/                     Custom browser dashboard (GitHub Pages friendly)
+│   └── index.html                 Single-file web app reading the Feature Layer
 ├── docs/
 │   ├── workflow.md                Step-by-step guide with expected outputs
-│   └── dashboard_build.md         Widget list + config for the Dashboard app
+│   ├── dashboard_build.md         Widget list + config for AGOL Dashboards
+│   └── dashboard_hosting.md       How to host the custom dashboard on GitHub Pages
 ├── scripts/                       One-off helpers, not part of the main flow
 └── data/                          Generated artifacts (gitignored)
+```
+
+## Custom browser dashboard (alternative to AGOL Dashboards)
+
+If ArcGIS Dashboards is slow / broken / unlicensed on your account, a
+self-contained web dashboard reads the same Feature Layer directly:
+
+- Five tabs: Overview, Correlation, Compare Counties, Trends (5-yr), Tract Ranking
+- Live from the public Feature Layer — no backend, no server
+- Hosted for free on GitHub Pages
+
+See `docs/dashboard_hosting.md` for the 2-minute setup. Once enabled,
+lives at:
+
+```
+https://amohith7.github.io/jhfrc-arcgis-explorer/dashboard/
 ```

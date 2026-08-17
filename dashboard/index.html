@@ -1,0 +1,846 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>JHFRC Regional Explorer</title>
+  <link rel="stylesheet" href="https://js.arcgis.com/4.30/esri/themes/light/main.css" />
+  <script src="https://js.arcgis.com/4.30/"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-annotation@3.0.1"></script>
+
+  <style>
+    :root {
+      --navy: #112E51;
+      --navy-light: #1e4472;
+      --gold: #FDB736;
+      --red:  #dc2626;
+      --green:#059669;
+      --gray-50: #f5f7fa;
+      --gray-100: #edf1f7;
+      --gray-200: #e5e7eb;
+      --gray-300: #d1d5db;
+      --gray-500: #9ca3af;
+      --gray-600: #6b7280;
+      --gray-800: #1f2937;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background: var(--gray-50);
+      color: var(--gray-800);
+      overflow: hidden;
+      height: 100vh;
+      font-size: 13px;
+    }
+    .app { display: grid; grid-template-rows: 56px 40px 1fr; height: 100vh; }
+    header {
+      background: var(--navy);
+      color: white;
+      padding: 10px 20px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      border-bottom: 3px solid var(--gold);
+    }
+    header h1 { margin: 0; font-size: 16px; font-weight: 600; }
+    header .subtitle { color: #d1d5db; font-size: 11px; margin-top: 1px; }
+    header .status { font-size: 11px; color: #9ca3af; background: rgba(255,255,255,0.06); padding: 4px 10px; border-radius: 4px; }
+    /* Tabs */
+    .tabs { display: flex; background: white; border-bottom: 1px solid var(--gray-300); padding: 0 16px; }
+    .tab {
+      padding: 10px 18px; cursor: pointer;
+      font-size: 13px; font-weight: 500;
+      color: var(--gray-600); border-bottom: 3px solid transparent;
+      margin-bottom: -1px;
+    }
+    .tab:hover { color: var(--navy); }
+    .tab.active { color: var(--navy); border-bottom-color: var(--navy); font-weight: 600; }
+    /* Main content */
+    main { display: grid; grid-template-columns: 280px 1fr; overflow: hidden; }
+    .sidebar {
+      background: white;
+      overflow-y: auto;
+      padding: 16px;
+      border-right: 1px solid var(--gray-300);
+    }
+    .content-area {
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      background: var(--gray-50);
+    }
+    .view { display: none; overflow: auto; flex: 1; padding: 0; }
+    .view.active { display: flex; flex-direction: column; }
+    /* Overview view */
+    .overview-grid {
+      display: grid;
+      grid-template-columns: 1fr 380px;
+      grid-template-rows: 1fr 260px;
+      height: 100%;
+      gap: 10px;
+      padding: 10px;
+    }
+    #mapView { background: #eef2f7; border-radius: 6px; position: relative; grid-row: 1; grid-column: 1; }
+    .kpi-panel { background: white; border-radius: 6px; padding: 14px; grid-row: 1; grid-column: 2; overflow-y: auto; }
+    .chart-panel { background: white; border-radius: 6px; padding: 12px 16px; overflow: hidden; display: flex; flex-direction: column; }
+    .chart-panel.wide { grid-row: 2; grid-column: 1 / 3; }
+    .chart-panel h3, .kpi-panel h3, .analysis-panel h3 {
+      margin: 0 0 10px 0; font-size: 12px;
+      color: var(--gray-600); font-weight: 600;
+      text-transform: uppercase; letter-spacing: 0.03em;
+    }
+    /* KPI tiles */
+    .kpis { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 12px; }
+    .kpi {
+      background: var(--gray-100); padding: 10px 12px;
+      border-radius: 6px; border-left: 4px solid var(--navy);
+    }
+    .kpi.tract { grid-column: 1 / 3; border-left-color: var(--gold); }
+    .kpi-label { font-size: 10px; color: var(--gray-600); text-transform: uppercase; letter-spacing: 0.05em; font-weight: 600; margin-bottom: 4px; }
+    .kpi-value { font-size: 22px; font-weight: 700; color: var(--gray-800); }
+    .kpi-value.small { font-size: 14px; }
+    .kpi-sub { font-size: 11px; color: var(--gray-600); margin-top: 2px; word-break: break-word; }
+    /* Ranked list */
+    .ranked { background: var(--gray-100); border-radius: 6px; padding: 8px; max-height: 300px; overflow-y: auto; }
+    .rank-row {
+      display: grid; grid-template-columns: 24px 1fr auto;
+      align-items: center; padding: 6px 8px;
+      border-bottom: 1px solid var(--gray-200); font-size: 12px;
+    }
+    .rank-row:last-child { border-bottom: none; }
+    .rank-row .rank-n { color: var(--gray-600); font-weight: 600; font-size: 11px; }
+    .rank-row .rank-lbl .county { color: var(--gray-600); font-size: 11px; display: block; }
+    .rank-row .rank-val { font-weight: 600; color: var(--navy); font-family: "SF Mono", Consolas, monospace; font-size: 12px; }
+    .rank-row.max-tract { background: rgba(220,38,38,0.06); }
+    .rank-row.min-tract { background: rgba(5,150,105,0.06); }
+    /* Sidebar controls */
+    .section { margin-bottom: 20px; }
+    .section h3 { margin: 0 0 6px 0; font-size: 11px; color: var(--gray-600); font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; }
+    select, input[type=text] {
+      width: 100%; padding: 6px 10px;
+      border: 1px solid var(--gray-300); border-radius: 4px;
+      font-size: 13px; background: white; cursor: pointer;
+    }
+    select:focus, input:focus { outline: 2px solid var(--navy); outline-offset: -1px; }
+    .county-list {
+      max-height: 220px; overflow-y: auto;
+      border: 1px solid var(--gray-300); border-radius: 4px;
+      padding: 4px 0; background: white;
+    }
+    .county-list label {
+      display: flex; align-items: center;
+      padding: 4px 10px; font-size: 13px; cursor: pointer; user-select: none;
+    }
+    .county-list label:hover { background: var(--gray-100); }
+    .county-list input { margin-right: 8px; }
+    .county-actions { display: flex; gap: 8px; margin-bottom: 6px; }
+    .county-actions button {
+      flex: 1; padding: 4px 8px; font-size: 11px;
+      background: white; color: var(--navy);
+      border: 1px solid var(--gray-300); border-radius: 4px; cursor: pointer;
+    }
+    .county-actions button:hover { background: var(--gray-100); }
+    /* Analysis views (correlation, compare, trends) */
+    .analysis-view { padding: 12px; height: 100%; overflow: auto; display: flex; flex-direction: column; gap: 10px; }
+    .analysis-panel { background: white; border-radius: 6px; padding: 14px 16px; }
+    .split-controls {
+      display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 8px;
+    }
+    .split-controls > div label { font-size: 10px; color: var(--gray-600); text-transform: uppercase; font-weight: 600; }
+    /* Compare table */
+    .compare-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+    .compare-table th {
+      text-align: left; padding: 8px 10px;
+      background: var(--gray-100); font-weight: 600;
+      font-size: 11px; text-transform: uppercase; letter-spacing: 0.03em;
+      color: var(--gray-600); position: sticky; top: 0;
+    }
+    .compare-table td { padding: 6px 10px; border-bottom: 1px solid var(--gray-200); }
+    .compare-table td.num { text-align: right; font-family: "SF Mono", Consolas, monospace; }
+    .compare-table td.better { color: var(--green); font-weight: 600; }
+    .compare-table td.worse { color: var(--red); font-weight: 600; }
+    .compare-table td.same { color: var(--gray-600); }
+    /* Loading */
+    .loading {
+      position: absolute; inset: 0;
+      background: rgba(255,255,255,0.8);
+      display: flex; align-items: center; justify-content: center;
+      color: var(--navy); font-size: 14px; z-index: 100;
+    }
+    .footnote { font-size: 10px; color: var(--gray-600); padding: 8px 12px; background: var(--gray-100); border-radius: 4px; margin-top: 12px; }
+    .footnote a { color: var(--navy); word-break: break-all; }
+    canvas { max-height: 100%; }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <header>
+      <div>
+        <h1>JHFRC Community Profiles — Regional Explorer</h1>
+        <div class="subtitle">Cross-county SDoH indicators · TN pilot · 11 counties · 176 tracts</div>
+      </div>
+      <div class="status" id="status">Loading…</div>
+    </header>
+
+    <!-- Tabs -->
+    <div class="tabs">
+      <div class="tab active" data-view="overview">Overview</div>
+      <div class="tab" data-view="correlation">Correlation</div>
+      <div class="tab" data-view="compare">Compare Counties</div>
+      <div class="tab" data-view="trends">Trends (5-yr)</div>
+      <div class="tab" data-view="ranking">Tract Ranking</div>
+    </div>
+
+    <main>
+      <!-- SIDEBAR: shared filters -->
+      <aside class="sidebar">
+        <div class="section">
+          <h3>Primary Indicator</h3>
+          <select id="indicatorSelect"></select>
+        </div>
+        <div class="section">
+          <h3>Secondary Indicator</h3>
+          <select id="indicatorSelectB"></select>
+          <div class="footnote" style="margin-top:6px;">Used for Correlation + Compare views.</div>
+        </div>
+        <div class="section">
+          <h3>Counties</h3>
+          <div class="county-actions">
+            <button id="selectAll">All</button>
+            <button id="selectNone">None</button>
+          </div>
+          <div class="county-list" id="countyList"></div>
+        </div>
+        <div class="section">
+          <h3>Data source</h3>
+          <div class="footnote">
+            Live from ArcGIS Feature Layer<br>
+            <a href="https://services.arcgis.com/UnTXoPXBYERF0OH6/arcgis/rest/services/jhfrc_census_tracts/FeatureServer/0" target="_blank">jhfrc_census_tracts</a>
+          </div>
+        </div>
+      </aside>
+
+      <div class="content-area">
+        <!-- OVERVIEW -->
+        <div class="view active" id="view-overview">
+          <div class="overview-grid">
+            <div id="mapView"><div class="loading" id="mapLoading">Loading map…</div></div>
+            <div class="kpi-panel">
+              <h3 id="kpiHeader">Summary</h3>
+              <div class="kpis">
+                <div class="kpi tract">
+                  <div class="kpi-label">Tracts in view</div>
+                  <div class="kpi-value" id="kpiTracts">—</div>
+                  <div class="kpi-sub" id="kpiSuppressed"></div>
+                </div>
+                <div class="kpi"><div class="kpi-label">Average</div><div class="kpi-value" id="kpiMean">—</div><div class="kpi-sub">across visible tracts</div></div>
+                <div class="kpi"><div class="kpi-label">Median</div><div class="kpi-value" id="kpiMedian">—</div><div class="kpi-sub">across visible tracts</div></div>
+                <div class="kpi"><div class="kpi-label">Min</div><div class="kpi-value small" id="kpiMin">—</div><div class="kpi-sub" id="kpiMinTract"></div></div>
+                <div class="kpi"><div class="kpi-label">Max</div><div class="kpi-value small" id="kpiMax">—</div><div class="kpi-sub" id="kpiMaxTract"></div></div>
+                <div class="kpi"><div class="kpi-label">Std Dev</div><div class="kpi-value small" id="kpiStd">—</div><div class="kpi-sub">spread</div></div>
+                <div class="kpi"><div class="kpi-label">Range</div><div class="kpi-value small" id="kpiRange">—</div><div class="kpi-sub">max minus min</div></div>
+              </div>
+              <h3>Top 10 Tracts</h3>
+              <div class="ranked" id="rankedListMini"></div>
+            </div>
+            <div class="chart-panel wide">
+              <h3 id="chartTitle">County averages</h3>
+              <canvas id="countyChart"></canvas>
+            </div>
+          </div>
+        </div>
+
+        <!-- CORRELATION -->
+        <div class="view" id="view-correlation">
+          <div class="analysis-view">
+            <div class="analysis-panel">
+              <h3>Scatter — Primary vs Secondary indicator</h3>
+              <div class="footnote" style="margin: 4px 0 12px 0;">Each dot is one tract. Pearson correlation shown below.</div>
+              <div id="scatterMeta" style="font-size:12px; color:var(--gray-800); margin-bottom:8px;"></div>
+              <div style="height:360px;"><canvas id="scatterChart"></canvas></div>
+            </div>
+            <div class="analysis-panel">
+              <h3>Correlation matrix — 10 headline indicators</h3>
+              <div style="height:300px;"><canvas id="corrChart"></canvas></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- COMPARE COUNTIES -->
+        <div class="view" id="view-compare">
+          <div class="analysis-view">
+            <div class="analysis-panel">
+              <h3>Compare two counties, side by side</h3>
+              <div class="split-controls">
+                <div><label>County A</label><select id="cmpCountyA"></select></div>
+                <div><label>County B</label><select id="cmpCountyB"></select></div>
+              </div>
+              <div style="overflow:auto; max-height:520px;">
+                <table class="compare-table" id="compareTable">
+                  <thead><tr><th>Indicator</th><th class="num">County A</th><th class="num">County B</th><th class="num">Difference</th><th class="num">Winner</th></tr></thead>
+                  <tbody></tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- TRENDS -->
+        <div class="view" id="view-trends">
+          <div class="analysis-view">
+            <div class="analysis-panel">
+              <h3>5-year change (average) by county — selected indicator</h3>
+              <div class="footnote" style="margin:4px 0 12px 0;">Positive = value has increased over 5 years, negative = decreased. Interpret direction using your knowledge of the indicator (e.g., poverty going up is bad; broadband access going up is good).</div>
+              <div id="trendMeta" style="font-size:12px; color:var(--gray-800); margin-bottom:8px;"></div>
+              <div style="height:400px;"><canvas id="trendChart"></canvas></div>
+            </div>
+            <div class="analysis-panel">
+              <h3>5-year change distribution (all tracts)</h3>
+              <div style="height:240px;"><canvas id="trendHistogram"></canvas></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- TRACT RANKING (full ranked list) -->
+        <div class="view" id="view-ranking">
+          <div class="analysis-view">
+            <div class="analysis-panel">
+              <h3>All tracts ranked — selected indicator</h3>
+              <div class="footnote" style="margin:4px 0 12px 0;">Sorted high to low across visible counties. Row shading: red = worst 10%, green = best 10% (relative to displayed distribution).</div>
+              <div style="max-height:560px; overflow:auto;">
+                <table class="compare-table" id="rankingTable">
+                  <thead><tr><th>#</th><th>Tract</th><th>County</th><th class="num">Value</th><th class="num">5-yr Δ</th></tr></thead>
+                  <tbody></tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <script>
+    // ─────────────────────────────────────────────────────────────────────
+    // Configuration
+    const INDICATORS = [
+      { id: 'pov_below',  label: 'Below Poverty Line (%)',              domain: 'Economic',   higherIsWorse: true  },
+      { id: 'mhi',        label: 'Median Household Income ($)',         domain: 'Economic',   higherIsWorse: false },
+      { id: 'mpci',       label: 'Mean Per Capita Income ($)',          domain: 'Economic',   higherIsWorse: false },
+      { id: 'gini',       label: 'Gini Index',                          domain: 'Economic',   higherIsWorse: true  },
+      { id: 'emp_adults', label: 'Employed Adults (%)',                 domain: 'Economic',   higherIsWorse: false },
+      { id: 'not_labor',  label: 'Not in the Labor Force (%)',          domain: 'Economic',   higherIsWorse: true  },
+      { id: 'hh_snap',    label: 'Receiving SNAP (%)',                  domain: 'Economic',   higherIsWorse: true  },
+      { id: 'hh_pubasst', label: 'Public Assistance (%)',               domain: 'Economic',   higherIsWorse: true  },
+      { id: 'edu_lths',   label: 'Less Than HS Education (%)',          domain: 'Education',  higherIsWorse: true  },
+      { id: 'edu_posths', label: 'Post-HS Education (%)',               domain: 'Education',  higherIsWorse: false },
+      { id: 'edu_ba',     label: "Bachelor's Degree (%)",               domain: 'Education',  higherIsWorse: false },
+      { id: 'edu_grad',   label: 'Graduate/Prof Degree (%)',            domain: 'Education',  higherIsWorse: false },
+      { id: 'youth_dis',  label: 'Youth Disconnection (%)',             domain: 'Education',  higherIsWorse: true  },
+      { id: 'any_disab',  label: 'Any Disability (%)',                  domain: 'Healthcare', higherIsWorse: true  },
+      { id: 'no_insur',   label: 'No Health Insurance (%)',             domain: 'Healthcare', higherIsWorse: true  },
+      { id: 'hh_diab',    label: 'Diabetes (%)',                        domain: 'Healthcare', higherIsWorse: true  },
+      { id: 'hh_asthma',  label: 'Asthma (%)',                          domain: 'Healthcare', higherIsWorse: true  },
+      { id: 'hh_heart',   label: 'Heart Disease (%)',                   domain: 'Healthcare', higherIsWorse: true  },
+      { id: 'hh_bp',      label: 'BP Medication (%)',                   domain: 'Healthcare', higherIsWorse: true  },
+      { id: 'ph_poor14',  label: '≥14 Days Poor Physical Health (%)',   domain: 'Healthcare', higherIsWorse: true  },
+      { id: 'mh_poor14',  label: '≥14 Days Poor Mental Health (%)',     domain: 'Healthcare', higherIsWorse: true  },
+      { id: 'smoke',      label: 'Smoking (%)',                         domain: 'Healthcare', higherIsWorse: true  },
+      { id: 'no_activ',   label: 'No Leisure Physical Activity (%)',    domain: 'Healthcare', higherIsWorse: true  },
+      { id: 'obesity',    label: 'Obesity (%)',                         domain: 'Healthcare', higherIsWorse: true  },
+      { id: 'bb_access',  label: 'Broadband Access (%)',                domain: 'Infrastructure', higherIsWorse: false },
+      { id: 'no_intnet',  label: 'No Internet Access (%)',              domain: 'Infrastructure', higherIsWorse: true  },
+      { id: 'med_rent',   label: 'Median Gross Rent ($)',               domain: 'Infrastructure', higherIsWorse: null  },
+      { id: 'med_home',   label: 'Median Home Value ($)',               domain: 'Infrastructure', higherIsWorse: null  },
+      { id: 'cost_burd',  label: 'Housing Cost Burden (%)',             domain: 'Infrastructure', higherIsWorse: true  },
+      { id: 'owner_occ',  label: 'Owner-Occupied (%)',                  domain: 'Infrastructure', higherIsWorse: null  },
+      { id: 'vacant',     label: 'Vacant Housing (%)',                  domain: 'Infrastructure', higherIsWorse: true  },
+      { id: 'no_veh',     label: 'No Vehicle (%)',                      domain: 'Infrastructure', higherIsWorse: true  },
+      { id: 'transit',    label: 'Public Transit Commuters (%)',        domain: 'Infrastructure', higherIsWorse: false },
+      { id: 'age_u18',    label: 'Population Under 18 (%)',             domain: 'Social',     higherIsWorse: null  },
+      { id: 'age_65p',    label: 'Population 65+ (%)',                  domain: 'Social',     higherIsWorse: null  },
+      { id: 'med_age',    label: 'Median Age',                          domain: 'Social',     higherIsWorse: null  },
+      { id: 'single_p',   label: 'Single-Parent Households (%)',        domain: 'Social',     higherIsWorse: true  },
+      { id: 'live_alon',  label: 'Living Alone (%)',                    domain: 'Social',     higherIsWorse: null  },
+      { id: 'foreign',    label: 'Foreign Born (%)',                    domain: 'Social',     higherIsWorse: null  },
+      { id: 'lang_span',  label: 'Speak Spanish at Home (%)',           domain: 'Social',     higherIsWorse: null  },
+    ];
+
+    const CORR_INDICATORS = ['pov_below','mhi','edu_ba','no_insur','obesity','hh_diab','bb_access','cost_burd','no_veh','youth_dis'];
+
+    const LAYER_URL = 'https://services.arcgis.com/UnTXoPXBYERF0OH6/arcgis/rest/services/jhfrc_census_tracts/FeatureServer/0';
+
+    const state = {
+      features: [], counties: new Set(),
+      indA: 'pov_below', indB: 'no_insur',
+      charts: {}, mapView: null, layer: null,
+    };
+
+    const fmt = v => v == null || isNaN(v) ? '—'
+      : (Math.abs(v) >= 1000
+          ? v.toLocaleString(undefined, {maximumFractionDigits: 0})
+          : v.toLocaleString(undefined, {maximumFractionDigits: 1}));
+
+    // ─────────────────────────────────────────────────────────────────────
+    function populateIndicatorSelects() {
+      const groups = {};
+      for (const ind of INDICATORS) (groups[ind.domain] ||= []).push(ind);
+      for (const sel of [document.getElementById('indicatorSelect'), document.getElementById('indicatorSelectB')]) {
+        for (const [domain, inds] of Object.entries(groups)) {
+          const og = document.createElement('optgroup'); og.label = domain;
+          for (const ind of inds) {
+            const opt = document.createElement('option'); opt.value = ind.id; opt.textContent = ind.label;
+            og.appendChild(opt);
+          }
+          sel.appendChild(og);
+        }
+      }
+      document.getElementById('indicatorSelect').value = state.indA;
+      document.getElementById('indicatorSelectB').value = state.indB;
+      document.getElementById('indicatorSelect').addEventListener('change', e => { state.indA = e.target.value; updateAll(); });
+      document.getElementById('indicatorSelectB').addEventListener('change', e => { state.indB = e.target.value; updateAll(); });
+    }
+
+    async function fetchFeatures() {
+      const fields = ['tract_geoid','county_name',
+                      ...INDICATORS.map(i => i.id),
+                      ...INDICATORS.map(i => i.id + '_d5')].join(',');
+      const url = `${LAYER_URL}/query?where=1%3D1&outFields=${fields}&f=json&resultRecordCount=2000`;
+      const r = await fetch(url);
+      const data = await r.json();
+      state.features = (data.features || []).map(f => f.attributes);
+      for (const f of state.features) if (f.county_name) state.counties.add(f.county_name);
+      document.getElementById('status').textContent = `${state.features.length} tracts · ${state.counties.size} counties`;
+    }
+
+    function populateCounties() {
+      const box = document.getElementById('countyList');
+      const cmpA = document.getElementById('cmpCountyA');
+      const cmpB = document.getElementById('cmpCountyB');
+      const sorted = [...state.counties].sort();
+      for (const c of sorted) {
+        const lbl = document.createElement('label');
+        lbl.innerHTML = `<input type="checkbox" value="${c}" checked> ${c}`;
+        box.appendChild(lbl);
+        lbl.querySelector('input').addEventListener('change', updateAll);
+        for (const s of [cmpA, cmpB]) {
+          const o = document.createElement('option'); o.value = c; o.textContent = c;
+          s.appendChild(o);
+        }
+      }
+      cmpA.value = sorted[0]; cmpB.value = sorted[sorted.length - 1];
+      cmpA.addEventListener('change', renderCompare);
+      cmpB.addEventListener('change', renderCompare);
+      document.getElementById('selectAll').addEventListener('click', () => {
+        box.querySelectorAll('input').forEach(i => i.checked = true); updateAll();
+      });
+      document.getElementById('selectNone').addEventListener('click', () => {
+        box.querySelectorAll('input').forEach(i => i.checked = false); updateAll();
+      });
+    }
+
+    function selectedCounties() {
+      return new Set([...document.querySelectorAll('#countyList input:checked')].map(i => i.value));
+    }
+
+    // Tabs
+    document.querySelectorAll('.tab').forEach(t => {
+      t.addEventListener('click', () => {
+        document.querySelectorAll('.tab').forEach(x => x.classList.remove('active'));
+        document.querySelectorAll('.view').forEach(x => x.classList.remove('active'));
+        t.classList.add('active');
+        document.getElementById('view-' + t.dataset.view).classList.add('active');
+        if (t.dataset.view === 'overview' && state.mapView) state.mapView.container.style.display = 'block';
+      });
+    });
+
+    // ─────────────────────────────────────────────────────────────────────
+    // Map
+    let mapModules = null;
+    function loadMap() {
+      require([
+        'esri/Map','esri/views/MapView','esri/layers/FeatureLayer',
+        'esri/smartMapping/renderers/color'
+      ], (Map, MapView, FeatureLayer, colorRendererCreator) => {
+        mapModules = { Map, MapView, FeatureLayer, colorRendererCreator };
+        const layer = new FeatureLayer({
+          url: LAYER_URL, outFields: ['*'],
+          popupTemplate: {
+            title: 'Tract {tract_geoid} — {county_name}',
+            content: [{ type: 'fields', fieldInfos: INDICATORS.map(i => ({
+              fieldName: i.id, label: i.label, format: { digitSeparator: true, places: 1 }
+            })) }]
+          }
+        });
+        state.layer = layer;
+        const map = new Map({ basemap: 'gray-vector', layers: [layer] });
+        state.mapView = new MapView({ container: 'mapView', map, center: [-85.3, 35.6], zoom: 7 });
+        state.mapView.when(() => {
+          document.getElementById('mapLoading').style.display = 'none';
+          restyleMap();
+        });
+      });
+    }
+
+    async function restyleMap() {
+      if (!mapModules || !state.layer) return;
+      const field = state.indA;
+      const ind = INDICATORS.find(i => i.id === field);
+      try {
+        const rendererResult = await mapModules.colorRendererCreator.createClassBreaksRenderer({
+          layer: state.layer, view: state.mapView, field,
+          classificationMethod: 'quantile', numClasses: 5,
+          legendOptions: { title: ind ? ind.label : field }
+        });
+        state.layer.renderer = rendererResult.renderer;
+      } catch (e) { console.warn('Smart mapping failed', e); }
+      const counties = [...selectedCounties()];
+      if (counties.length && counties.length < state.counties.size) {
+        const list = counties.map(c => `'${c.replace(/'/g, "''")}'`).join(',');
+        state.layer.definitionExpression = `county_name IN (${list})`;
+      } else {
+        state.layer.definitionExpression = '';
+      }
+    }
+
+    // ─────────────────────────────────────────────────────────────────────
+    // Overview: KPIs + county bar + top 10
+    function renderOverview() {
+      const field = state.indA;
+      const ind = INDICATORS.find(i => i.id === field);
+      const counties = selectedCounties();
+      const visible = state.features.filter(f =>
+        counties.has(f.county_name) &&
+        f[field] !== null && f[field] !== undefined && !isNaN(f[field]));
+      const values = visible.map(f => f[field]).slice().sort((a,b) => a-b);
+      const totalVisible = state.features.filter(f => counties.has(f.county_name)).length;
+      const suppressed = totalVisible - visible.length;
+
+      document.getElementById('kpiHeader').textContent = ind ? ind.label : field;
+      document.getElementById('kpiTracts').textContent = visible.length.toLocaleString();
+      document.getElementById('kpiSuppressed').textContent = suppressed ? `${suppressed} suppressed / no data` : 'no missing values';
+
+      if (values.length) {
+        const mean = values.reduce((a,b) => a+b, 0) / values.length;
+        const median = values[Math.floor(values.length/2)];
+        const min = values[0], max = values[values.length-1];
+        const variance = values.reduce((a,b) => a + (b-mean)**2, 0) / values.length;
+        const std = Math.sqrt(variance);
+        const minRow = visible.find(f => f[field] === min);
+        const maxRow = visible.find(f => f[field] === max);
+        document.getElementById('kpiMean').textContent = fmt(mean);
+        document.getElementById('kpiMedian').textContent = fmt(median);
+        document.getElementById('kpiMin').textContent = fmt(min);
+        document.getElementById('kpiMax').textContent = fmt(max);
+        document.getElementById('kpiStd').textContent = fmt(std);
+        document.getElementById('kpiRange').textContent = fmt(max - min);
+        document.getElementById('kpiMinTract').textContent = minRow ? `${minRow.tract_geoid} · ${minRow.county_name}` : '';
+        document.getElementById('kpiMaxTract').textContent = maxRow ? `${maxRow.tract_geoid} · ${maxRow.county_name}` : '';
+      } else {
+        for (const id of ['kpiMean','kpiMedian','kpiMin','kpiMax','kpiStd','kpiRange']) document.getElementById(id).textContent = '—';
+        document.getElementById('kpiMinTract').textContent = '';
+        document.getElementById('kpiMaxTract').textContent = '';
+      }
+
+      const top10 = [...visible].sort((a,b) => b[field] - a[field]).slice(0, 10);
+      const rl = document.getElementById('rankedListMini'); rl.innerHTML = '';
+      top10.forEach((r, i) => {
+        const row = document.createElement('div');
+        row.className = 'rank-row';
+        row.innerHTML = `
+          <div class="rank-n">${i+1}</div>
+          <div class="rank-lbl">${r.tract_geoid}<span class="county">${r.county_name}</span></div>
+          <div class="rank-val">${fmt(r[field])}</div>`;
+        rl.appendChild(row);
+      });
+
+      // County bar chart
+      const byCounty = {};
+      for (const f of visible) (byCounty[f.county_name] ||= []).push(f[field]);
+      const chartLabels = Object.keys(byCounty).sort((a,b) => {
+        const ma = byCounty[a].reduce((x,y)=>x+y,0)/byCounty[a].length;
+        const mb = byCounty[b].reduce((x,y)=>x+y,0)/byCounty[b].length;
+        return mb - ma;
+      });
+      const chartValues = chartLabels.map(c => byCounty[c].reduce((x,y)=>x+y,0)/byCounty[c].length);
+      document.getElementById('chartTitle').textContent = `County averages — ${ind ? ind.label : field}`;
+      renderBarChart('countyChart', chartLabels, chartValues, '#112E51');
+    }
+
+    function renderBarChart(canvasId, labels, values, color) {
+      if (state.charts[canvasId]) state.charts[canvasId].destroy();
+      const ctx = document.getElementById(canvasId).getContext('2d');
+      state.charts[canvasId] = new Chart(ctx, {
+        type: 'bar',
+        data: { labels, datasets: [{ data: values, backgroundColor: color, borderWidth: 0 }] },
+        options: {
+          responsive: true, maintainAspectRatio: false,
+          plugins: { legend: { display: false }, tooltip: { callbacks: { label: (c) => fmt(c.parsed.y) } } },
+          scales: { x: { ticks: { font: { size: 10 } } }, y: { ticks: { font: { size: 10 } } } }
+        }
+      });
+    }
+
+    // ─────────────────────────────────────────────────────────────────────
+    // Correlation: scatter + Pearson r + correlation matrix
+    function pearsonR(xs, ys) {
+      const n = xs.length;
+      if (n < 2) return null;
+      const mx = xs.reduce((a,b) => a+b, 0)/n;
+      const my = ys.reduce((a,b) => a+b, 0)/n;
+      let sxy = 0, sxx = 0, syy = 0;
+      for (let i=0; i<n; i++) {
+        const dx = xs[i]-mx, dy = ys[i]-my;
+        sxy += dx*dy; sxx += dx*dx; syy += dy*dy;
+      }
+      const d = Math.sqrt(sxx*syy);
+      return d === 0 ? 0 : sxy/d;
+    }
+
+    function renderCorrelation() {
+      const fx = state.indA, fy = state.indB;
+      const indX = INDICATORS.find(i => i.id === fx);
+      const indY = INDICATORS.find(i => i.id === fy);
+      const counties = selectedCounties();
+      const pts = state.features.filter(f =>
+        counties.has(f.county_name) &&
+        f[fx] != null && !isNaN(f[fx]) &&
+        f[fy] != null && !isNaN(f[fy])).map(f => ({ x: f[fx], y: f[fy], tract: f.tract_geoid, county: f.county_name }));
+      const r = pearsonR(pts.map(p => p.x), pts.map(p => p.y));
+      document.getElementById('scatterMeta').innerHTML =
+        `<b>${indX?.label}</b> vs <b>${indY?.label}</b> · ${pts.length} tracts · ` +
+        `Pearson r = <b style="color:${r > 0.4 ? '#dc2626' : r < -0.4 ? '#059669' : '#6b7280'}">${r != null ? r.toFixed(3) : '—'}</b> ` +
+        `(${r > 0.7 ? 'very strong +' : r > 0.4 ? 'moderate +' : r > 0.2 ? 'weak +' : r < -0.7 ? 'very strong −' : r < -0.4 ? 'moderate −' : r < -0.2 ? 'weak −' : 'no'} correlation)`;
+
+      if (state.charts.scatter) state.charts.scatter.destroy();
+      const ctx = document.getElementById('scatterChart').getContext('2d');
+      state.charts.scatter = new Chart(ctx, {
+        type: 'scatter',
+        data: { datasets: [{ data: pts, backgroundColor: 'rgba(17,46,81,0.55)', pointRadius: 4 }] },
+        options: {
+          responsive: true, maintainAspectRatio: false,
+          plugins: {
+            legend: { display: false },
+            tooltip: { callbacks: {
+              label: (c) => `Tract ${c.raw.tract} · ${c.raw.county}: ${indX?.label}=${fmt(c.parsed.x)}, ${indY?.label}=${fmt(c.parsed.y)}`
+            }}
+          },
+          scales: {
+            x: { title: { display: true, text: indX?.label, font: { size: 11 } } },
+            y: { title: { display: true, text: indY?.label, font: { size: 11 } } }
+          }
+        }
+      });
+
+      // Correlation matrix (10 x 10) — encoded as heatmap-style horizontal bars
+      const matrix = [];
+      for (const a of CORR_INDICATORS) {
+        for (const b of CORR_INDICATORS) {
+          const xs = [], ys = [];
+          for (const f of state.features) {
+            if (!counties.has(f.county_name)) continue;
+            if (f[a] == null || f[b] == null || isNaN(f[a]) || isNaN(f[b])) continue;
+            xs.push(f[a]); ys.push(f[b]);
+          }
+          matrix.push({ a, b, r: pearsonR(xs, ys) || 0 });
+        }
+      }
+      renderCorrMatrix(matrix);
+    }
+
+    function renderCorrMatrix(matrix) {
+      // Chart.js doesn't have a native heatmap. Render as bubble chart where
+      // bubble color + size encodes |r|.
+      if (state.charts.corr) state.charts.corr.destroy();
+      const n = CORR_INDICATORS.length;
+      const data = matrix.map(m => ({
+        x: CORR_INDICATORS.indexOf(m.a),
+        y: CORR_INDICATORS.indexOf(m.b),
+        r: Math.max(3, Math.abs(m.r) * 20),
+        raw: m.r,
+      }));
+      const ctx = document.getElementById('corrChart').getContext('2d');
+      state.charts.corr = new Chart(ctx, {
+        type: 'bubble',
+        data: { datasets: [{
+          data,
+          backgroundColor: data.map(d => {
+            const r = d.raw;
+            if (r > 0)  return `rgba(220,38,38,${Math.abs(r).toFixed(2)})`;
+            if (r < 0)  return `rgba(5,150,105,${Math.abs(r).toFixed(2)})`;
+            return 'rgba(107,114,128,0.3)';
+          }),
+        }] },
+        options: {
+          responsive: true, maintainAspectRatio: false,
+          plugins: {
+            legend: { display: false },
+            tooltip: { callbacks: {
+              label: (c) => {
+                const d = c.raw;
+                const a = INDICATORS.find(i => i.id === CORR_INDICATORS[d.x])?.label;
+                const b = INDICATORS.find(i => i.id === CORR_INDICATORS[d.y])?.label;
+                return `${a} vs ${b}: r=${d.raw.toFixed(3)}`;
+              }
+            } }
+          },
+          scales: {
+            x: { min: -0.5, max: n-0.5, ticks: { stepSize: 1, callback: (v) => CORR_INDICATORS[v] || '', font: { size: 9 }, maxRotation: 60 } },
+            y: { min: -0.5, max: n-0.5, ticks: { stepSize: 1, callback: (v) => CORR_INDICATORS[v] || '', font: { size: 9 } } }
+          }
+        }
+      });
+    }
+
+    // ─────────────────────────────────────────────────────────────────────
+    // Compare two counties
+    function renderCompare() {
+      const a = document.getElementById('cmpCountyA').value;
+      const b = document.getElementById('cmpCountyB').value;
+      const tbody = document.querySelector('#compareTable tbody');
+      tbody.innerHTML = '';
+      const aRows = state.features.filter(f => f.county_name === a);
+      const bRows = state.features.filter(f => f.county_name === b);
+      const avg = (rows, k) => {
+        const v = rows.map(r => r[k]).filter(x => x != null && !isNaN(x));
+        return v.length ? v.reduce((x,y)=>x+y,0)/v.length : null;
+      };
+      document.querySelector('#compareTable thead th:nth-child(2)').textContent = a;
+      document.querySelector('#compareTable thead th:nth-child(3)').textContent = b;
+      for (const ind of INDICATORS) {
+        const va = avg(aRows, ind.id);
+        const vb = avg(bRows, ind.id);
+        const diff = va != null && vb != null ? va - vb : null;
+        let winner = '—', winClass = 'same';
+        if (va != null && vb != null && ind.higherIsWorse != null) {
+          const aBetter = ind.higherIsWorse ? va < vb : va > vb;
+          if (Math.abs(va-vb) < 0.01) { winner = 'tie'; }
+          else if (aBetter) { winner = a; winClass = 'better'; }
+          else              { winner = b; winClass = 'better'; }
+        }
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+          <td>${ind.label}</td>
+          <td class="num">${fmt(va)}</td>
+          <td class="num">${fmt(vb)}</td>
+          <td class="num">${diff != null ? (diff > 0 ? '+' : '') + fmt(diff) : '—'}</td>
+          <td class="num ${winClass}">${winner}</td>`;
+        tbody.appendChild(tr);
+      }
+    }
+
+    // ─────────────────────────────────────────────────────────────────────
+    // Trends
+    function renderTrends() {
+      const field = state.indA, dfield = field + '_d5';
+      const ind = INDICATORS.find(i => i.id === field);
+      const counties = selectedCounties();
+      const pts = state.features.filter(f =>
+        counties.has(f.county_name) &&
+        f[dfield] != null && !isNaN(f[dfield]));
+      // county averages of deltas
+      const byCounty = {};
+      for (const f of pts) (byCounty[f.county_name] ||= []).push(f[dfield]);
+      const labels = Object.keys(byCounty).sort((a,b) => {
+        const ma = byCounty[a].reduce((x,y)=>x+y,0)/byCounty[a].length;
+        const mb = byCounty[b].reduce((x,y)=>x+y,0)/byCounty[b].length;
+        return ma - mb;
+      });
+      const vals = labels.map(c => byCounty[c].reduce((x,y)=>x+y,0)/byCounty[c].length);
+      document.getElementById('trendMeta').innerHTML =
+        `<b>${ind?.label}</b> · 5-year change across ${pts.length} tracts. Positive bars = value has ${ind?.higherIsWorse ? 'gotten worse' : ind?.higherIsWorse === false ? 'gotten better' : 'changed'}.`;
+      if (state.charts.trend) state.charts.trend.destroy();
+      const colors = vals.map(v => {
+        if (ind?.higherIsWorse == null) return '#112E51';
+        const bad = (ind.higherIsWorse && v > 0) || (!ind.higherIsWorse && v < 0);
+        return bad ? '#dc2626' : '#059669';
+      });
+      const ctx = document.getElementById('trendChart').getContext('2d');
+      state.charts.trend = new Chart(ctx, {
+        type: 'bar',
+        data: { labels, datasets: [{ data: vals, backgroundColor: colors }] },
+        options: {
+          indexAxis: 'y',
+          responsive: true, maintainAspectRatio: false,
+          plugins: { legend: { display: false }, tooltip: { callbacks: { label: (c) => fmt(c.parsed.x) } } },
+          scales: { x: { ticks: { font: { size: 10 } } }, y: { ticks: { font: { size: 10 } } } }
+        }
+      });
+
+      // Histogram of tract-level deltas
+      const dvals = pts.map(f => f[dfield]);
+      const min = Math.min(...dvals), max = Math.max(...dvals);
+      const nBins = 20;
+      const w = (max - min) / nBins || 1;
+      const bins = new Array(nBins).fill(0);
+      for (const v of dvals) {
+        const idx = Math.min(nBins-1, Math.max(0, Math.floor((v - min) / w)));
+        bins[idx]++;
+      }
+      const binLabels = bins.map((_, i) => fmt(min + i*w));
+      if (state.charts.trendHist) state.charts.trendHist.destroy();
+      const ctx2 = document.getElementById('trendHistogram').getContext('2d');
+      state.charts.trendHist = new Chart(ctx2, {
+        type: 'bar',
+        data: { labels: binLabels, datasets: [{ data: bins, backgroundColor: '#1e4472', barPercentage: 1.0, categoryPercentage: 1.0 }] },
+        options: {
+          responsive: true, maintainAspectRatio: false,
+          plugins: { legend: { display: false } },
+          scales: { x: { ticks: { font: { size: 9 }, maxRotation: 60 } }, y: { ticks: { font: { size: 10 } } } }
+        }
+      });
+    }
+
+    // ─────────────────────────────────────────────────────────────────────
+    // Tract ranking
+    function renderRanking() {
+      const field = state.indA;
+      const dfield = field + '_d5';
+      const counties = selectedCounties();
+      const visible = state.features.filter(f =>
+        counties.has(f.county_name) &&
+        f[field] != null && !isNaN(f[field]));
+      const sorted = [...visible].sort((a,b) => b[field] - a[field]);
+      const tbody = document.querySelector('#rankingTable tbody');
+      tbody.innerHTML = '';
+      const p10 = Math.floor(sorted.length * 0.1);
+      sorted.forEach((r, i) => {
+        const isMax = i < p10;
+        const isMin = i >= sorted.length - p10;
+        const tr = document.createElement('tr');
+        if (isMax) tr.classList.add('max-tract');
+        if (isMin) tr.classList.add('min-tract');
+        const d = r[dfield];
+        const dTxt = d == null || isNaN(d) ? '—' : (d > 0 ? '+' : '') + fmt(d);
+        tr.innerHTML = `
+          <td>${i+1}</td><td>${r.tract_geoid}</td><td>${r.county_name}</td>
+          <td class="num">${fmt(r[field])}</td>
+          <td class="num">${dTxt}</td>`;
+        tbody.appendChild(tr);
+      });
+    }
+
+    // ─────────────────────────────────────────────────────────────────────
+    // Refresh everything
+    function updateAll() {
+      renderOverview();
+      renderCorrelation();
+      renderCompare();
+      renderTrends();
+      renderRanking();
+      restyleMap();
+    }
+
+    (async function boot() {
+      populateIndicatorSelects();
+      try { await fetchFeatures(); }
+      catch (e) { document.getElementById('status').textContent = 'Data fetch failed: ' + e.message; return; }
+      populateCounties();
+      loadMap();
+      updateAll();
+    })();
+  </script>
+</body>
+</html>
