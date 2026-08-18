@@ -54,14 +54,8 @@
       column-gap: 18px;
       border-bottom: 3px solid var(--gold);
     }
-    header .brand { justify-self: start; display: flex; align-items: center; }
+    header .logo { justify-self: start; height: 44px; width: auto; display: block; }
     header .titles { justify-self: center; text-align: center; }
-    header .logo {
-      height: 44px;
-      width: auto;
-      display: block;
-      flex-shrink: 0;
-    }
     header .titles h1 { margin: 0; font-size: 16px; font-weight: 600; line-height: 1.15; }
     header .titles .subtitle { color: #d1d5db; font-size: 11px; margin-top: 2px; }
     header .status { justify-self: end; font-size: 11px; color: #d1d5db; background: rgba(253,183,54,0.12); border: 1px solid rgba(253,183,54,0.35); padding: 5px 10px; border-radius: 4px; white-space: nowrap; }
@@ -195,12 +189,10 @@
 <body>
   <div class="app">
     <header>
-      <div class="brand">
-        <img class="logo" src="jhfrc-logo.svg" alt="Journey Health Foundation Research Center — University of Tennessee at Chattanooga" />
-        <div class="titles">
-          <h1>Community Profiles — Regional Explorer</h1>
-          <div class="subtitle">Cross-county SDoH indicators · TN pilot · 11 counties · 176 tracts</div>
-        </div>
+      <img class="logo" src="jhfrc-logo.svg" alt="Journey Health Foundation Research Center — University of Tennessee at Chattanooga" />
+      <div class="titles">
+        <h1>Community Profiles — Regional Explorer</h1>
+        <div class="subtitle">Cross-county SDoH indicators · TN pilot · 11 counties · 176 tracts</div>
       </div>
       <div class="status" id="status">Loading…</div>
     </header>
