@@ -9,13 +9,28 @@
   <link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png" />
   <link rel="icon" type="image/png" sizes="16x16" href="favicon-16.png" />
   <link rel="apple-touch-icon" href="favicon.png" />
-  <link rel="stylesheet" href="https://js.arcgis.com/4.30/esri/themes/light/main.css" />
+  <!-- ArcGIS 4.30 stylesheet, integrity-pinned. If Esri publishes a
+       new 4.30 patch, this hash will need refresh. Brief 2 C6. -->
+  <link rel="stylesheet"
+        href="https://js.arcgis.com/4.30/esri/themes/light/main.css"
+        integrity="sha384-FTFe6RL9azUBNXI7OjAm2l52U4TbX6X+l7pszZnrd0TYsowHp5DYb8juOcJGFcxQ"
+        crossorigin="anonymous" />
   <!-- Load Chart.js FIRST so its UMD auto-detect uses window.Chart,
        not the AMD 'define' that ArcGIS's Dojo loader publishes next.
        chartjs-plugin-annotation was previously included but conflicts
        with Dojo's AMD registration and is never actually used, so it
        is intentionally omitted. -->
-  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1"></script>
+  <!-- Chart.js 4.4.1 pinned to the exact minified UMD build and
+       SRI-hashed. Loaded BEFORE the ArcGIS SDK so the ArcGIS
+       Dojo/AMD loader doesn't hijack Chart.js's UMD `define`. -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"
+          integrity="sha384-9nhczxUqK87bcKHh20fSQcTGD4qq5GhayNYSYWqwBkINBhOfQLg/P5HG5lF1urn4"
+          crossorigin="anonymous"></script>
+  <!-- ArcGIS 4.30 SDK bootstrap. Not SRI-hashed because /4.30/ is a
+       redirector that dynamically loads dozens of module files; the
+       top-level hash would cover the bootstrap only and force a bump
+       every time Esri patches a minor. If you need SRI on the whole
+       load graph, self-host the SDK. -->
   <script src="https://js.arcgis.com/4.30/"></script>
 
   <style>
@@ -86,6 +101,23 @@
     header .status { justify-self: end; font-size: 11px; color: #d1d5db; background: rgba(253,183,54,0.12); border: 1px solid rgba(253,183,54,0.35); padding: 5px 10px; border-radius: 4px; white-space: nowrap; }
     /* Tabs */
     .tabs { display: flex; background: white; border-bottom: 1px solid var(--gray-300); padding: 0 16px; }
+    /* The Filters button sits at the start; the actual tab list is a
+       flex row so the tabs continue to render inline. Semantics-only
+       change (Brief 2 C4). */
+    .tab-list { display: flex; align-items: stretch; flex: 1 1 auto; min-width: 0; }
+    /* Keyboard focus ring — visible only for keyboard users, per :focus-visible */
+    .tab:focus-visible { outline: 2px solid var(--navy); outline-offset: -2px; }
+
+    /* CSV download button (Brief 2 C5). Small, secondary — the panel
+       title is the primary affordance; this sits at the right end of
+       the same row. */
+    .csv-btn {
+      background: var(--navy); color: white; border: 0;
+      padding: 4px 10px; font-size: 11px; font-weight: 600;
+      border-radius: 3px; cursor: pointer; letter-spacing: 0.02em;
+    }
+    .csv-btn:hover { background: var(--navy-light); }
+    .csv-btn:focus-visible { outline: 2px solid var(--navy-light); outline-offset: 2px; }
     .tab {
       padding: 10px 18px; cursor: pointer;
       font-size: 13px; font-weight: 500;
@@ -366,14 +398,18 @@
       <div class="status" id="status">Loading…</div>
     </header>
 
-    <!-- Tabs (Filters button only visible on mobile via CSS) -->
+    <!-- Tabs. Marked up as an ARIA tablist (Brief 2 C4). The Filters
+         button is a real <button> and sits outside the tablist so
+         screen readers don't announce it as one of the tabs. -->
     <div class="tabs">
       <button id="filtersToggle" type="button">Filters</button>
-      <div class="tab active" data-view="overview">Overview</div>
-      <div class="tab" data-view="correlation">Correlation</div>
-      <div class="tab" data-view="compare">Compare Counties</div>
-      <div class="tab" data-view="trends">Trends (5-yr)</div>
-      <div class="tab" data-view="ranking">Tract Ranking</div>
+      <div class="tab-list" role="tablist" aria-label="Sections">
+        <div class="tab active" role="tab" id="tab-overview"    aria-controls="view-overview"    aria-selected="true"  tabindex="0"  data-view="overview">Overview</div>
+        <div class="tab"        role="tab" id="tab-correlation" aria-controls="view-correlation" aria-selected="false" tabindex="-1" data-view="correlation">Correlation</div>
+        <div class="tab"        role="tab" id="tab-compare"     aria-controls="view-compare"     aria-selected="false" tabindex="-1" data-view="compare">Compare Counties</div>
+        <div class="tab"        role="tab" id="tab-trends"      aria-controls="view-trends"      aria-selected="false" tabindex="-1" data-view="trends" title="How things changed between the 2015–19 and 2020–24 ACS 5-year vintages">How things changed</div>
+        <div class="tab"        role="tab" id="tab-ranking"     aria-controls="view-ranking"     aria-selected="false" tabindex="-1" data-view="ranking">Tract Ranking</div>
+      </div>
     </div>
     <main>
       <!-- SIDEBAR: shared filters -->
@@ -486,7 +522,10 @@
         <div class="view" id="view-compare">
           <div class="analysis-view">
             <div class="analysis-panel">
-              <h3>Compare counties side by side</h3>
+              <h3 style="display:flex; align-items:center; justify-content:space-between; gap:8px;">
+                <span>Compare counties side by side</span>
+                <button type="button" id="compareCsvBtn" class="csv-btn" title="Download the current comparison as CSV">Download CSV</button>
+              </h3>
               <div class="footnote" style="margin-bottom:10px;">
                 Add or remove counties using the <b>Counties</b> filter
                 in the left sidebar. Each selected county becomes a
@@ -508,17 +547,37 @@
           </div>
         </div>
 
-        <!-- TRENDS -->
+        <!-- TRENDS — "How things changed" -->
         <div class="view" id="view-trends">
           <div class="analysis-view">
             <div class="analysis-panel" style="flex: 3 1 0; min-height: 340px;">
-              <h3>5-year change (average) by county — selected indicator</h3>
-              <div class="footnote" style="margin:4px 0 12px 0;">Positive = value has increased over 5 years, negative = decreased. Interpret direction using your knowledge of the indicator (e.g., poverty going up is bad; broadband access going up is good).</div>
+              <h3>Which counties changed the most for the selected indicator?</h3>
+              <!-- Plain-language framing for a non-technical audience.
+                   Compares two ACS 5-year vintages: 2015–19 (earlier)
+                   and 2020–24 (most recent). Renamed from "5-year
+                   change" because that phrase confused viewers into
+                   thinking it was year-over-year change. -->
+              <div class="footnote" style="margin:4px 0 12px 0;">
+                Bars show <b>how much a county's average value
+                changed</b> between the two most recent 5-year windows
+                of Census ACS data: <b>2015–2019</b> and
+                <b>2020–2024</b>. Colors: <span style="color:#059669;">green</span>
+                = change in a helpful direction, <span style="color:#dc2626;">red</span>
+                = change in a harmful direction. Whether a rise or a
+                fall is "helpful" depends on the indicator (falling
+                poverty rate = green; rising median income = green).
+              </div>
               <div id="trendMeta" style="font-size:12px; color:var(--gray-800); margin-bottom:8px;"></div>
               <div class="chart-box" style="min-height: 300px;"><canvas id="trendChart"></canvas></div>
             </div>
             <div class="analysis-panel" style="flex: 2 1 0; min-height: 240px;">
-              <h3>5-year change distribution (all tracts)</h3>
+              <h3>How much did each tract change?</h3>
+              <div class="footnote" style="margin:4px 0 12px 0;">
+                One bar per bucket of tracts. Tract-level change is
+                noisier than the county average because tract
+                populations are small — the county average smooths
+                that noise out.
+              </div>
               <div class="chart-box" style="min-height: 200px;"><canvas id="trendHistogram"></canvas></div>
             </div>
           </div>
@@ -528,7 +587,10 @@
         <div class="view" id="view-ranking">
           <div class="analysis-view">
             <div class="analysis-panel">
-              <h3>All tracts ranked — selected indicator</h3>
+              <h3 style="display:flex; align-items:center; justify-content:space-between; gap:8px;">
+                <span>All tracts ranked — selected indicator</span>
+                <button type="button" id="rankingCsvBtn" class="csv-btn" title="Download the current ranking as CSV">Download CSV</button>
+              </h3>
               <div class="footnote" style="margin:4px 0 12px 0;">Sorted high to low across visible counties. Row shading: red highlights the 10% of tracts with the least favorable value for this indicator, green highlights the 10% with the most favorable, using the indicator's "higher is worse" or "higher is better" orientation. Indicators with no defined direction (median age, race breakdown, etc.) are shown unshaded.</div>
               <div class="compare-scroll">
                 <table class="compare-table" id="rankingTable">
@@ -647,11 +709,19 @@
       const fromTarget = CORR_INDICATORS_TARGET.filter(id => present.has(id));
       // If at least three-quarters of the target list is published, use
       // it. Otherwise use the fallback (also filtered to what's live).
+      let list;
       if (fromTarget.length >= Math.ceil(CORR_INDICATORS_TARGET.length * 0.75)) {
-        return fromTarget;
+        list = fromTarget;
+      } else {
+        const fromFallback = CORR_INDICATORS_FALLBACK.filter(id => present.has(id));
+        list = fromFallback.length >= 3 ? fromFallback : fromTarget;
       }
-      const fromFallback = CORR_INDICATORS_FALLBACK.filter(id => present.has(id));
-      return fromFallback.length >= 3 ? fromFallback : fromTarget;
+      // Also drop anything that has no non-null value for the current
+      // county selection — matches the dropdown / Compare behaviour.
+      if (_availableIds && _availableIds.size > 0) {
+        list = list.filter(id => _availableIds.has(id));
+      }
+      return list;
     }
 
     const LAYER_URL = 'https://services.arcgis.com/UnTXoPXBYERF0OH6/arcgis/rest/services/jhfrc_census_tracts/FeatureServer/0';
@@ -662,8 +732,105 @@
       charts: {}, mapView: null, layer: null,
     };
 
+    // ─── URL state (Brief 2 C5) ─────────────────────────────────────
+    // Serialize the picked indicators + county filter into location.hash
+    // so a shared link reproduces the view. Format:
+    //   #a=<indA>&b=<indB>&c=<county1>,<county2>,...
+    // Absent keys leave the current state alone (partial links are OK).
+    function readUrlState() {
+      const raw = (location.hash || '').replace(/^#/, '');
+      if (!raw) return {};
+      const params = new URLSearchParams(raw);
+      const out = {};
+      const a = params.get('a'); if (a) out.indA = a;
+      const b = params.get('b'); if (b) out.indB = b;
+      const c = params.get('c'); if (c) out.counties = c.split(',').map(s => decodeURIComponent(s)).filter(Boolean);
+      return out;
+    }
+    function writeUrlState() {
+      try {
+        const cs = [...selectedCounties()];
+        const p = new URLSearchParams();
+        p.set('a', state.indA);
+        p.set('b', state.indB);
+        // Only write the counties list when it's a real subset. All-
+        // selected = omit key so a copy-paste link doesn't lock the
+        // reader into "all 11 counties" if we later change the pilot.
+        if (cs.length > 0 && cs.length < state.counties.size) {
+          p.set('c', cs.map(encodeURIComponent).join(','));
+        }
+        const next = '#' + p.toString();
+        // replaceState so the back button doesn't cycle through every
+        // filter toggle.
+        if (location.hash !== next) history.replaceState(null, '', next);
+      } catch (_) { /* URL state is a nice-to-have; never break the app */ }
+    }
+    function applyUrlState(u) {
+      if (u.indA) state.indA = u.indA;
+      if (u.indB) state.indB = u.indB;
+      if (u.counties) {
+        const wanted = new Set(u.counties);
+        document.querySelectorAll('#countyList input').forEach(inp => {
+          inp.checked = wanted.has(inp.value);
+        });
+      }
+    }
+
+    // ─── CSV export (Brief 2 C5) ────────────────────────────────────
+    // Build a CSV blob from a header row + rows-of-arrays payload and
+    // trigger a download. No dependency, no server round trip.
+    function downloadCsv(filename, header, rows) {
+      const q = v => {
+        if (v == null) return '';
+        const s = String(v);
+        // Only quote when needed — commas, quotes, newlines, or leading
+        // spaces. Escape embedded quotes by doubling.
+        return /[",\n\r]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
+      };
+      const body = [header, ...rows].map(r => r.map(q).join(',')).join('\r\n');
+      const blob = new Blob(['﻿' + body], {type: 'text/csv;charset=utf-8'});
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url; a.download = filename;
+      document.body.appendChild(a); a.click();
+      setTimeout(() => { URL.revokeObjectURL(url); a.remove(); }, 0);
+    }
+
     // Indicator lookup used by fmt() when an id string is passed.
     const INDICATORS_BY_ID = Object.fromEntries(INDICATORS.map(i => [i.id, i]));
+
+    // Source-of-truth tags. PLACES = CDC's model-based small-area
+    // estimates (BRFSS + demographics). CDC advises AGAINST comparing
+    // PLACES releases across years to derive change over time — the
+    // model is periodically re-specified and the underlying inputs
+    // differ, so year-over-year "movement" in a tract's PLACES value
+    // is largely model drift, not actual epidemiological change.
+    // Everything else is ACS-derived and does support 5-year change.
+    // Brief 2 C2. Reference:
+    //   https://www.cdc.gov/places/methodology/index.html
+    const PLACES_INDICATOR_IDS = new Set([
+      'hh_diab','hh_asthma','hh_heart','hh_bp','hh_bpmed','hh_chol',
+      'hh_arthr','hh_copd','hh_stroke','ph_poor14','mh_poor14',
+      'fair_hlth','smoke','binge','no_activ','obesity','sleep_lt7',
+    ]);
+    for (const ind of INDICATORS) {
+      ind.source = PLACES_INDICATOR_IDS.has(ind.id) ? 'PLACES' : 'ACS';
+    }
+    function indicatorSupportsDelta(id) {
+      // Layer must publish the _d5 field AND the source must be one
+      // that supports valid cross-year comparison.
+      if (state.publishedDeltaIds && !state.publishedDeltaIds.has(id)) return false;
+      const ind = INDICATORS_BY_ID[id];
+      if (ind && ind.source === 'PLACES') return false;
+      return true;
+    }
+    function deltaUnavailableReason(id) {
+      const ind = INDICATORS_BY_ID[id];
+      if (ind && ind.source === 'PLACES') {
+        return 'CDC PLACES model-based estimates are not comparable across releases (model re-specification). 5-year change is intentionally suppressed.';
+      }
+      return '5-year change not published for this indicator on the layer.';
+    }
 
     // Format a value with the indicator's unit + decimal-place rules.
     // `ind` can be an indicator object, an indicator id, or omitted
@@ -742,19 +909,44 @@
     }
 
     // ─────────────────────────────────────────────────────────────────────
-    function populateIndicatorSelects() {
-      // Filter to indicators that actually exist on the published layer,
-      // so we never offer a dropdown option that returns 0 tracts / an
-      // empty ranking / empty charts. The full INDICATORS constant is
-      // aspirational (targets the eventual 61-indicator republish); until
-      // the layer catches up we hide the rest so users don't hit "dead"
-      // selections.
-      const available = state.publishedIndicators && state.publishedIndicators.length
+    // "Available for the CURRENT county selection" — an indicator is
+    // available when at least one selected-county tract has a non-null
+    // value for it. Recomputed on each selection change so the dropdown,
+    // Compare table, and Correlation matrix never offer an indicator
+    // that would render as all "—" for the counties in view.
+    function indicatorsAvailableForSelection() {
+      const base = state.publishedIndicators && state.publishedIndicators.length
         ? state.publishedIndicators
         : INDICATORS;
+      const counties = selectedCounties();
+      // Empty selection = hide-empty check is meaningless; return the
+      // full published set so viewers see the full menu.
+      if (!counties || counties.size === 0) return base;
+      // Fast path: seed a "has-data" set by scanning features once.
+      const hit = new Set();
+      const need = new Set(base.map(i => i.id));
+      for (const f of state.features) {
+        if (!counties.has(f.county_name)) continue;
+        for (const id of need) {
+          if (hit.has(id)) continue;
+          const v = f[id];
+          if (v != null && !isNaN(v)) hit.add(id);
+        }
+        if (hit.size === need.size) break;
+      }
+      return base.filter(i => hit.has(i.id));
+    }
+
+    // Build (or rebuild) the two indicator <select>s from the current
+    // "available" set. Safe to call repeatedly — event listeners are
+    // attached to the <select>, not the <option>s, so re-populating
+    // doesn't drop them.
+    function rebuildIndicatorOptions() {
+      const available = indicatorsAvailableForSelection();
       const groups = {};
       for (const ind of available) (groups[ind.domain] ||= []).push(ind);
       for (const sel of [document.getElementById('indicatorSelect'), document.getElementById('indicatorSelectB')]) {
+        if (!sel) continue;
         sel.innerHTML = '';
         for (const [domain, inds] of Object.entries(groups)) {
           const og = document.createElement('optgroup'); og.label = domain;
@@ -766,29 +958,56 @@
         }
       }
       // If the currently-selected indicator isn't in the available set,
-      // fall back to the first available one so the app still boots
-      // rather than showing a null renderer.
+      // fall back to the first available one.
       const availableIds = new Set(available.map(i => i.id));
       if (!availableIds.has(state.indA)) state.indA = available[0]?.id ?? state.indA;
       if (!availableIds.has(state.indB)) {
         state.indB = available.find(i => i.id !== state.indA)?.id ?? state.indA;
       }
-      document.getElementById('indicatorSelect').value = state.indA;
-      document.getElementById('indicatorSelectB').value = state.indB;
-      document.getElementById('indicatorSelect').addEventListener('change', e => { state.indA = e.target.value; updateAll(); });
-      document.getElementById('indicatorSelectB').addEventListener('change', e => { state.indB = e.target.value; updateAll(); });
-      // Palette + scale-mode pickers — restyle the map only.
-      const pal = document.getElementById('paletteSelect');
-      if (pal) pal.addEventListener('change', () => restyleMap());
-      const scaleMode = document.getElementById('scaleModeSelect');
-      if (scaleMode) scaleMode.addEventListener('change', () => restyleMap());
-      // Visible coverage note in the sidebar Data source panel, so the
-      // gap between configured and published is legible rather than
-      // hidden in the console.
+      const selA = document.getElementById('indicatorSelect');
+      const selB = document.getElementById('indicatorSelectB');
+      if (selA) selA.value = state.indA;
+      if (selB) selB.value = state.indB;
+      // Coverage note reflects the CURRENT filter, not just the
+      // aspirational max.
       const coverEl = document.getElementById('coverageNote');
       if (coverEl) {
+        const total = INDICATORS.length;
+        const layer = (state.publishedIndicators || INDICATORS).length;
         coverEl.textContent =
-          `${available.length} of ${INDICATORS.length} configured indicators published on this layer.`;
+          `${available.length} indicators shown · ${layer} published on layer · ${total} configured overall.`;
+      }
+      return available;
+    }
+    // Cache for quick membership checks in Compare / Correlation.
+    let _availableIds = new Set();
+
+    function populateIndicatorSelects() {
+      const available = rebuildIndicatorOptions();
+      _availableIds = new Set(available.map(i => i.id));
+      // Wire the change listeners once. rebuildIndicatorOptions may run
+      // many times but this must only run on first population, else we
+      // double-fire updateAll on every change.
+      const selA = document.getElementById('indicatorSelect');
+      const selB = document.getElementById('indicatorSelectB');
+      if (selA && !selA.dataset.wired) {
+        selA.addEventListener('change', e => { state.indA = e.target.value; updateAll(); });
+        selA.dataset.wired = '1';
+      }
+      if (selB && !selB.dataset.wired) {
+        selB.addEventListener('change', e => { state.indB = e.target.value; updateAll(); });
+        selB.dataset.wired = '1';
+      }
+      // Palette + scale-mode pickers — restyle the map only.
+      const pal = document.getElementById('paletteSelect');
+      if (pal && !pal.dataset.wired) {
+        pal.addEventListener('change', () => restyleMap());
+        pal.dataset.wired = '1';
+      }
+      const scaleMode = document.getElementById('scaleModeSelect');
+      if (scaleMode && !scaleMode.dataset.wired) {
+        scaleMode.addEventListener('change', () => restyleMap());
+        scaleMode.dataset.wired = '1';
       }
     }
 
@@ -822,11 +1041,31 @@
       state.publishedDeltaIds = new Set(
         INDICATORS.filter(i => existing.has(i.id + '_d5')).map(i => i.id)
       );
-      const url = `${LAYER_URL}/query?where=1%3D1&outFields=${fields.join(',')}&f=json&resultRecordCount=2000`;
-      const r = await fetch(url);
-      const data = await r.json();
-      if (data.error) throw new Error(`Layer query failed: ${data.error.message}`);
-      state.features = (data.features || []).map(f => f.attributes);
+      // Page through the layer until we've drained it. FeatureServer
+      // returns exceededTransferLimit=true when a single query hit the
+      // server's resultRecordCount cap (typically 2000). The TN pilot
+      // is 176 tracts, so one round is enough today, but the 47-county
+      // roll-out will cross the cap. Brief 2 C3.
+      const PAGE_SIZE = 2000;
+      const outFieldsQS = fields.join(',');
+      let offset = 0;
+      const allAttrs = [];
+      // Hard ceiling of 20 pages (40k tracts) — defensive against a
+      // misconfigured layer that never sets exceededTransferLimit=false.
+      for (let page = 0; page < 20; page++) {
+        const url = `${LAYER_URL}/query?where=1%3D1&outFields=${outFieldsQS}` +
+                    `&resultOffset=${offset}&resultRecordCount=${PAGE_SIZE}&f=json`;
+        const r = await fetch(url);
+        const data = await r.json();
+        if (data.error) throw new Error(`Layer query failed: ${data.error.message}`);
+        const attrs = (data.features || []).map(f => f.attributes);
+        allAttrs.push(...attrs);
+        // Stop when the server tells us there's nothing more (or the
+        // page came back short of the cap).
+        if (!data.exceededTransferLimit || attrs.length < PAGE_SIZE) break;
+        offset += attrs.length;
+      }
+      state.features = allAttrs;
       for (const f of state.features) if (f.county_name) state.counties.add(f.county_name);
       document.getElementById('status').textContent = `${state.features.length} tracts · ${state.counties.size} counties`;
     }
@@ -855,21 +1094,76 @@
       return new Set([...document.querySelectorAll('#countyList input:checked')].map(i => i.value));
     }
 
-    // Tabs — activation renders the just-opened view if it's dirty
-    // (Brief 2 B5, works with the lazy render dispatch above).
-    document.querySelectorAll('.tab').forEach(t => {
-      t.addEventListener('click', () => {
-        document.querySelectorAll('.tab').forEach(x => x.classList.remove('active'));
-        document.querySelectorAll('.view').forEach(x => x.classList.remove('active'));
-        t.classList.add('active');
-        document.getElementById('view-' + t.dataset.view).classList.add('active');
-        if (t.dataset.view === 'overview' && state.mapView) state.mapView.container.style.display = 'block';
-        // If the newly-activated view has stale data, render it now.
-        if (dirty.has(t.dataset.view)) renderView(t.dataset.view);
-        // Close the mobile drawer after picking a tab, so the newly
-        // visible view isn't hidden underneath the sidebar.
-        closeSidebarDrawer();
+    // Tabs — click activates + syncs ARIA state + roving tabindex.
+    // Keyboard nav: Left/Right cycle tabs, Home/End jump to ends,
+    // Enter/Space activate the focused tab (native <div role="tab">
+    // needs this manually). Brief 2 C4 + B5.
+    const tabEls = [...document.querySelectorAll('[role="tab"]')];
+    function activateTab(t) {
+      if (!t) return;
+      // Class + ARIA state sync — every tab off, then this one on.
+      tabEls.forEach(x => {
+        x.classList.remove('active');
+        x.setAttribute('aria-selected', 'false');
+        x.setAttribute('tabindex', '-1');
       });
+      document.querySelectorAll('.view').forEach(x => x.classList.remove('active'));
+      t.classList.add('active');
+      t.setAttribute('aria-selected', 'true');
+      t.setAttribute('tabindex', '0');
+      document.getElementById('view-' + t.dataset.view).classList.add('active');
+      if (t.dataset.view === 'overview' && state.mapView) state.mapView.container.style.display = 'block';
+      if (dirty.has(t.dataset.view)) renderView(t.dataset.view);
+      closeSidebarDrawer();
+    }
+    tabEls.forEach((t, i) => {
+      t.addEventListener('click', () => activateTab(t));
+      t.addEventListener('keydown', e => {
+        let next = null;
+        if (e.key === 'ArrowRight') next = tabEls[(i + 1) % tabEls.length];
+        else if (e.key === 'ArrowLeft') next = tabEls[(i - 1 + tabEls.length) % tabEls.length];
+        else if (e.key === 'Home') next = tabEls[0];
+        else if (e.key === 'End') next = tabEls[tabEls.length - 1];
+        else if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); activateTab(t); return; }
+        if (next) {
+          e.preventDefault();
+          activateTab(next);
+          next.focus();
+        }
+      });
+    });
+    // Mark each view panel so ARIA relationship is complete.
+    document.querySelectorAll('.view').forEach(v => {
+      v.setAttribute('role', 'tabpanel');
+      v.setAttribute('aria-labelledby', 'tab-' + v.id.replace(/^view-/, ''));
+      v.setAttribute('tabindex', '0');
+    });
+
+    // CSV download buttons on Compare + Ranking (Brief 2 C5).
+    // Buttons rebuild the payload from live DOM state so anything the
+    // user has just filtered / sorted is what gets exported.
+    document.getElementById('compareCsvBtn')?.addEventListener('click', () => {
+      const table = document.getElementById('compareTable');
+      if (!table) return;
+      const header = [...table.querySelectorAll('thead th')].map(th => th.innerText.replace(/\s+/g, ' ').trim());
+      const rows = [...table.querySelectorAll('tbody tr')].map(tr =>
+        [...tr.querySelectorAll('td')].map(td => td.innerText.trim())
+      );
+      const ind = INDICATORS_BY_ID[state.indA];
+      const stamp = new Date().toISOString().slice(0,10);
+      downloadCsv(`jhfrc_compare_${stamp}.csv`, header, rows);
+    });
+    document.getElementById('rankingCsvBtn')?.addEventListener('click', () => {
+      const table = document.getElementById('rankingTable');
+      if (!table) return;
+      const header = ['Rank','Tract','County','Value','5yr change'];
+      const rows = [...table.querySelectorAll('tbody tr')].map(tr =>
+        [...tr.querySelectorAll('td')].map(td => td.innerText.trim())
+      );
+      const ind = INDICATORS_BY_ID[state.indA];
+      const stamp = new Date().toISOString().slice(0,10);
+      const slug = (ind ? ind.id : state.indA);
+      downloadCsv(`jhfrc_ranking_${slug}_${stamp}.csv`, header, rows);
     });
 
     // Mobile sidebar drawer: Filters button toggles; tab click and
@@ -1483,12 +1777,15 @@
       for (const c of selected) {
         byCounty[c] = state.features.filter(f => f.county_name === c);
       }
-      // Only iterate indicators that are actually published — the full
-      // INDICATORS constant is aspirational and would produce all-null
-      // rows for the ~40 that haven't been added to the layer yet.
-      const indicatorList = state.publishedIndicators && state.publishedIndicators.length
+      // Only iterate indicators that (a) exist on the layer and
+      // (b) have at least one non-null value across the currently-
+      // selected counties. Hides indicators that would render an
+      // entire row of "—" for the current filter. Falls back to the
+      // schema-published set if the availability cache isn't ready.
+      const indicatorList = (state.publishedIndicators && state.publishedIndicators.length
         ? state.publishedIndicators
-        : INDICATORS;
+        : INDICATORS
+      ).filter(i => _availableIds.size === 0 || _availableIds.has(i.id));
       for (const ind of indicatorList) {
         const values = selected.map(c => avg(byCounty[c], ind.id));
         // Best (favorable) county for this indicator
@@ -1517,17 +1814,19 @@
     function renderTrends() {
       const field = state.indA, dfield = field + '_d5';
       const ind = INDICATORS.find(i => i.id === field);
-      // If no 5-year delta exists for this indicator (either it isn't
-      // published or the source doesn't emit deltas — PLACES model-based
-      // estimates fall in the latter bucket), show an explanatory empty
-      // state in both panels rather than a blank canvas. See Brief 2 A1
-      // and C2.
-      const hasDelta = state.publishedDeltaIds
-        ? state.publishedDeltaIds.has(field)
-        : (state.presentFields ? state.presentFields.has(dfield) : true);
+      // Delta available? Two gates: layer publishes _d5 AND the source
+      // is one that supports year-over-year comparison. PLACES fails
+      // the second gate even when the _d5 field exists on the layer
+      // (Brief 2 C2). deltaUnavailableReason() supplies the caveat text.
+      const hasDelta = indicatorSupportsDelta(field);
       if (!hasDelta) {
+        // Plain-language empty state — no jargon ("PLACES model-based
+        // estimates" would lose most viewers).
+        const line = ind && ind.source === 'PLACES'
+          ? 'This indicator comes from CDC PLACES, a statistical model that is re-fit each release. Change between releases is mostly model drift, not real change, so we do not show it.'
+          : 'Change data has not yet been published for this indicator.';
         document.getElementById('trendMeta').innerHTML =
-          `<b>${ind?.label ?? field}</b> · no 5-year change available for this indicator on the published layer.`;
+          `<b>${ind?.label ?? field}</b> · ${line}`;
         for (const key of ['trend','trendHist']) {
           if (state.charts[key]) { state.charts[key].destroy(); state.charts[key] = null; }
         }
@@ -1538,7 +1837,7 @@
             g.clearRect(0, 0, c.width, c.height);
             g.fillStyle = '#9ca3af'; g.font = '13px system-ui';
             g.textAlign = 'center'; g.textBaseline = 'middle';
-            g.fillText('5-year change not published for this indicator', c.width / 2, c.height / 2);
+            g.fillText('Change over time not available for this indicator', c.width / 2, c.height / 2);
           }
         }
         return;
@@ -1556,8 +1855,31 @@
         return ma - mb;
       });
       const vals = labels.map(c => byCounty[c].reduce((x,y)=>x+y,0)/byCounty[c].length);
+      // Plain-language framing for a non-technical audience:
+      // 1. Name the two vintages so viewers know what "change" means.
+      // 2. Call out the two most-extreme counties with direction words
+      //    ("rose the most" / "fell the most") instead of raw + / − values.
+      // 3. State what a positive number implies for THIS indicator so
+      //    they don't need to remember direction conventions.
+      const rise = ind && ind.higherIsWorse === true ? 'worse' : ind && ind.higherIsWorse === false ? 'better' : 'higher';
+      const fall = ind && ind.higherIsWorse === true ? 'better' : ind && ind.higherIsWorse === false ? 'worse' : 'lower';
+      let summary = '';
+      if (labels.length >= 2) {
+        const paired = labels.map((c, i) => ({ c, v: vals[i] }));
+        const gain = paired.reduce((a, b) => (a.v > b.v ? a : b));
+        const drop = paired.reduce((a, b) => (a.v < b.v ? a : b));
+        if (gain.c !== drop.c) {
+          summary =
+            ` Across the selected counties, ${ind?.label ?? field} rose the most in <b>${gain.c}</b> (${fmtDelta(gain.v, ind)}) and fell the most in <b>${drop.c}</b> (${fmtDelta(drop.v, ind)}).`;
+        }
+      }
       document.getElementById('trendMeta').innerHTML =
-        `<b>${ind?.label}</b> · 5-year change across ${pts.length} tracts. Positive bars = value has ${ind?.higherIsWorse ? 'gotten worse' : ind?.higherIsWorse === false ? 'gotten better' : 'changed'}.`;
+        `Comparing the <b>2015–2019</b> and <b>2020–2024</b> American Community Survey 5-year releases (${pts.length} tracts).` +
+        summary +
+        ` A positive number means <b>${ind?.label ?? field}</b> went up between the two windows` +
+        (ind?.higherIsWorse != null
+          ? ` — for this indicator that is <b style="color:${ind.higherIsWorse ? '#dc2626' : '#059669'};">${rise}</b>.`
+          : `.`);
       if (state.charts.trend) state.charts.trend.destroy();
       const colors = vals.map(v => {
         if (ind?.higherIsWorse == null) return '#112E51';
@@ -1574,8 +1896,14 @@
           plugins: { legend: { display: false }, tooltip: { callbacks: { label: (c) => fmtDelta(c.parsed.x, ind) } } },
           scales: {
             x: {
-              title: { display: true, text: `5-Year change in ${ind?.label ?? field}`, font: { size: 11, weight: '600' }, color: '#374151' },
-              // Unit-aware ticks — reads "+3.2 pp" instead of "3.2".
+              title: {
+                display: true,
+                text: `Change in ${ind?.label ?? field}  (2015–19 → 2020–24)`,
+                font: { size: 11, weight: '600' }, color: '#374151',
+              },
+              // Unit-aware ticks — "+3.2 pp" for percent indicators,
+              // "+$1,234" for currency, etc. Non-technical viewers can
+              // read the numbers directly instead of guessing the unit.
               ticks: {
                 font: { size: 10 },
                 callback: (v) => (typeof v === 'number' ? fmtDelta(v, ind) : v),
@@ -1632,12 +1960,11 @@
       const field = state.indA;
       const dfield = field + '_d5';
       const ind = INDICATORS.find(i => i.id === field);
-      // Same delta-availability check as renderTrends: if there's no
-      // _d5 field on the layer for this indicator, render "—" in muted
-      // grey rather than "0.0" (which is factually wrong).
-      const hasDelta = state.publishedDeltaIds
-        ? state.publishedDeltaIds.has(field)
-        : (state.presentFields ? state.presentFields.has(dfield) : true);
+      // Same delta-availability check as renderTrends — layer publishes
+      // _d5 AND the source supports year-over-year comparison (PLACES
+      // model-based estimates fail the second gate). Brief 2 C2.
+      const hasDelta = indicatorSupportsDelta(field);
+      const deltaReason = hasDelta ? '' : deltaUnavailableReason(field);
       const counties = selectedCounties();
       const visible = state.features.filter(f =>
         counties.has(f.county_name) &&
@@ -1663,7 +1990,7 @@
         const d = hasDelta ? r[dfield] : null;
         const deltaCell = hasDelta
           ? `<td class="num">${fmtDelta(d, ind)}</td>`
-          : `<td class="num" style="color:#9ca3af;" title="5-year change not published for this indicator">—</td>`;
+          : `<td class="num" style="color:#9ca3af;" title="${deltaReason}">—</td>`;
         tr.innerHTML = `
           <td>${i+1}</td><td>${r.tract_geoid}</td><td>${r.county_name}</td>
           <td class="num">${fmt(r[field], ind)}</td>
@@ -1694,10 +2021,17 @@
       dirty.delete(name);
     }
     function updateAll() {
+      // Rebuild dropdown options first so indicators that are empty for
+      // the current county selection drop out of the menu (and the map
+      // / other views never render an all-null indicator).
+      const available = rebuildIndicatorOptions();
+      _availableIds = new Set(available.map(i => i.id));
       // Mark every view dirty, then render only the visible one.
       for (const k of Object.keys(RENDERERS)) dirty.add(k);
       renderView(activeView());
       restyleMap();
+      // Persist the picks to the URL so this view is share-able.
+      writeUrlState();
     }
     // Debounced entry-point used by the county checklist so rapid
     // multi-select doesn't queue five restyleMap awaits in a row.
@@ -1721,8 +2055,23 @@
       }
       populateIndicatorSelects();
       populateCounties();
+      // Apply any state encoded in the URL hash BEFORE the first
+      // updateAll so a shared link lands the reader in the intended
+      // view without a flash of the default state.
+      applyUrlState(readUrlState());
       loadMap();
       updateAll();
+      // If the URL hash changes later (Back/Forward on a shared link
+      // history entry, or an external nav), re-apply.
+      window.addEventListener('hashchange', () => {
+        applyUrlState(readUrlState());
+        // Sync the selects to the applied state.
+        const selA = document.getElementById('indicatorSelect');
+        const selB = document.getElementById('indicatorSelectB');
+        if (selA) selA.value = state.indA;
+        if (selB) selB.value = state.indB;
+        updateAll();
+      });
     })();
   </script>
 </body>
