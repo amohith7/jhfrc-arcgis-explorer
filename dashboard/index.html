@@ -41,9 +41,15 @@
       color: var(--gray-800);
       overflow: hidden;
       height: 100vh;
+      height: 100dvh;              /* iOS Safari toolbar-safe */
       font-size: 13px;
     }
-    .app { display: grid; grid-template-rows: 72px 40px 1fr; height: 100vh; }
+    .app {
+      display: grid;
+      grid-template-rows: 72px 40px 1fr;
+      height: 100vh;
+      height: 100dvh;
+    }
     header {
       background: linear-gradient(90deg, var(--navy) 0%, var(--navy-light) 100%);
       color: white;
@@ -54,7 +60,14 @@
       column-gap: 18px;
       border-bottom: 3px solid var(--gold);
     }
-    header .logo { justify-self: start; height: 52px; width: auto; display: block; }
+    header .logo {
+      justify-self: start;
+      height: 40px;                /* fits within the 72px header row with breathing room */
+      width: auto;
+      max-width: 260px;            /* prevents an over-wide SVG from crowding the title */
+      object-fit: contain;
+      display: block;
+    }
     header .titles h1 { font-size: 17px; }
     header .titles .subtitle { font-size: 12px; }
     header .titles { justify-self: center; text-align: center; }
@@ -210,31 +223,107 @@
       .overview-grid { grid-template-columns: 1fr 320px; }
     }
 
-    /* Mobile (< 800px): stack everything vertically */
+    /* Mobile (< 800px): map-first, sidebar becomes a slide-in drawer
+       toggled by a Filters button in the tab bar. Tap targets 44x44
+       minimum. Uses 100dvh so iOS Safari's toolbar doesn't clip the
+       bottom of the app. */
     @media (max-width: 800px) {
-      .app { grid-template-rows: auto 40px 1fr; }
-      header { grid-template-columns: 1fr; row-gap: 6px; padding: 8px 12px; text-align: center; }
-      header .logo { justify-self: center; height: 40px; }
-      header .titles { justify-self: center; }
-      header .titles h1 { font-size: 15px; }
-      header .status { justify-self: center; }
-      main { grid-template-columns: 1fr; }
-      .sidebar {
-        border-right: none; border-bottom: 1px solid var(--gray-300);
-        max-height: 240px;
+      .app { grid-template-rows: auto 48px 1fr; }
+      header {
+        grid-template-columns: 1fr;
+        row-gap: 4px; padding: 8px 12px; text-align: center;
       }
-      .tabs { overflow-x: auto; }
-      .tab { padding: 10px 12px; font-size: 12px; white-space: nowrap; }
+      header .logo { justify-self: center; height: 36px; max-width: 220px; }
+      header .titles { justify-self: center; }
+      header .titles h1 { font-size: 14px; }
+      header .titles .subtitle { font-size: 10px; }
+      header .status { justify-self: center; font-size: 10px; padding: 3px 8px; }
+
+      /* Tabs: 44px touch targets, scroll horizontally, add a Filters
+         toggle at the front. */
+      .tabs { overflow-x: auto; padding-left: 0; }
+      .tab {
+        padding: 12px 14px; font-size: 13px; white-space: nowrap;
+        min-height: 44px; display: flex; align-items: center;
+      }
+      #filtersToggle {
+        display: flex; align-items: center; gap: 6px;
+        background: var(--navy); color: white;
+        border: 0; border-radius: 0;
+        padding: 0 14px; min-width: 100px;
+        font-size: 13px; font-weight: 600;
+        cursor: pointer;
+      }
+      #filtersToggle::before { content: '☰'; font-size: 16px; }
+
+      /* Content area is a single column so the map + views can go full-width. */
+      main { grid-template-columns: 1fr; }
+
+      /* Sidebar becomes an off-canvas drawer, slides in from the left
+         when #sidebarDrawer[data-open="true"]. Full-height + scrollable. */
+      .sidebar {
+        position: fixed;
+        top: 0; left: 0; bottom: 0;
+        width: 280px; max-width: 85vw;
+        z-index: 1000;
+        transform: translateX(-100%);
+        transition: transform 0.25s ease;
+        box-shadow: 4px 0 12px rgba(0,0,0,0.15);
+        max-height: 100dvh;
+        border-right: 1px solid var(--gray-300);
+        border-bottom: none;
+      }
+      .sidebar[data-open="true"] { transform: translateX(0); }
+      #sidebarBackdrop {
+        display: none;
+        position: fixed; inset: 0;
+        background: rgba(0,0,0,0.4);
+        z-index: 999;
+      }
+      #sidebarBackdrop[data-open="true"] { display: block; }
+      /* Bigger checkboxes / buttons inside the sidebar */
+      .county-list label { padding: 10px 12px; font-size: 14px; min-height: 44px; }
+      .county-list input[type=checkbox] { transform: scale(1.15); margin-right: 10px; }
+      .county-actions button { min-height: 40px; }
+      select, input[type=text] { min-height: 40px; font-size: 14px; }
+
+      /* Overview: map fills, KPIs collapse to single column below,
+         chart panel at the bottom. */
       .overview-grid {
         grid-template-columns: 1fr;
-        grid-template-rows: 300px auto 240px;
+        grid-template-rows: minmax(340px, 45dvh) auto minmax(240px, 30dvh);
+        padding: 6px; gap: 6px;
       }
       #mapView { grid-row: 1; grid-column: 1; }
-      .kpi-panel { grid-row: 2; grid-column: 1; }
+      .kpi-panel { grid-row: 2; grid-column: 1; padding: 10px; }
       .chart-panel.wide { grid-row: 3; grid-column: 1; }
-      .kpis { grid-template-columns: 1fr; }
-      .compare-scroll { max-height: calc(100vh - 320px); }
+      .kpis { grid-template-columns: 1fr 1fr; gap: 6px; }
+      .kpi { padding: 8px 10px; }
+      .kpi-value { font-size: 18px; }
+
+      /* Analysis views: less padding, always-scrollable tables */
+      .analysis-view { padding: 8px; gap: 8px; }
+      .analysis-panel { padding: 10px 12px; }
+      .compare-scroll { max-height: calc(100dvh - 220px); }
       .split-controls { grid-template-columns: 1fr; }
+      .compare-table th, .compare-table td { padding: 8px 10px; font-size: 12px; }
+
+      /* Sticky first column in Compare + Ranking tables so users don't
+         lose track of the row label while scrolling many county columns. */
+      .compare-table th:first-child, .compare-table td:first-child {
+        position: sticky; left: 0;
+        background: white; z-index: 1;
+      }
+      .compare-table thead th:first-child { background: var(--gray-100); z-index: 2; }
+    }
+
+    /* Very small phones (< 480px): tighten further */
+    @media (max-width: 480px) {
+      header .titles h1 { font-size: 13px; }
+      header .titles .subtitle { display: none; }
+      .tab { padding: 12px 10px; font-size: 12px; }
+      .kpi-value { font-size: 16px; }
+      .kpi-value.small { font-size: 12px; }
     }
     /* Loading */
     .loading {
@@ -259,14 +348,17 @@
       <div class="status" id="status">Loading…</div>
     </header>
 
-    <!-- Tabs -->
+    <!-- Tabs (Filters button only visible on mobile via CSS) -->
     <div class="tabs">
+      <button id="filtersToggle" type="button">Filters</button>
       <div class="tab active" data-view="overview">Overview</div>
       <div class="tab" data-view="correlation">Correlation</div>
       <div class="tab" data-view="compare">Compare Counties</div>
       <div class="tab" data-view="trends">Trends (5-yr)</div>
       <div class="tab" data-view="ranking">Tract Ranking</div>
     </div>
+    <!-- Backdrop for the mobile sidebar drawer -->
+    <div id="sidebarBackdrop"></div>
 
     <main>
       <!-- SIDEBAR: shared filters -->
@@ -400,15 +492,15 @@
         <!-- TRENDS -->
         <div class="view" id="view-trends">
           <div class="analysis-view">
-            <div class="analysis-panel">
+            <div class="analysis-panel" style="flex: 3 1 0; min-height: 340px;">
               <h3>5-year change (average) by county — selected indicator</h3>
               <div class="footnote" style="margin:4px 0 12px 0;">Positive = value has increased over 5 years, negative = decreased. Interpret direction using your knowledge of the indicator (e.g., poverty going up is bad; broadband access going up is good).</div>
               <div id="trendMeta" style="font-size:12px; color:var(--gray-800); margin-bottom:8px;"></div>
-              <div class="chart-box"><canvas id="trendChart"></canvas></div>
+              <div class="chart-box" style="min-height: 300px;"><canvas id="trendChart"></canvas></div>
             </div>
-            <div class="analysis-panel">
+            <div class="analysis-panel" style="flex: 2 1 0; min-height: 240px;">
               <h3>5-year change distribution (all tracts)</h3>
-              <div class="chart-box" style="min-height:200px;"><canvas id="trendHistogram"></canvas></div>
+              <div class="chart-box" style="min-height: 200px;"><canvas id="trendHistogram"></canvas></div>
             </div>
           </div>
         </div>
@@ -658,7 +750,37 @@
         t.classList.add('active');
         document.getElementById('view-' + t.dataset.view).classList.add('active');
         if (t.dataset.view === 'overview' && state.mapView) state.mapView.container.style.display = 'block';
+        // Close the mobile drawer after picking a tab, so the newly
+        // visible view isn't hidden underneath the sidebar.
+        closeSidebarDrawer();
       });
+    });
+
+    // Mobile sidebar drawer: Filters button toggles, backdrop click closes,
+    // and any filter change auto-closes so the map is visible again.
+    const sidebarEl = document.querySelector('.sidebar');
+    const backdropEl = document.getElementById('sidebarBackdrop');
+    const filtersToggle = document.getElementById('filtersToggle');
+    function openSidebarDrawer() {
+      if (!sidebarEl) return;
+      sidebarEl.setAttribute('data-open', 'true');
+      if (backdropEl) backdropEl.setAttribute('data-open', 'true');
+    }
+    function closeSidebarDrawer() {
+      if (!sidebarEl) return;
+      sidebarEl.removeAttribute('data-open');
+      if (backdropEl) backdropEl.removeAttribute('data-open');
+    }
+    if (filtersToggle) {
+      filtersToggle.addEventListener('click', () => {
+        if (sidebarEl && sidebarEl.getAttribute('data-open') === 'true') closeSidebarDrawer();
+        else openSidebarDrawer();
+      });
+    }
+    if (backdropEl) backdropEl.addEventListener('click', closeSidebarDrawer);
+    // Auto-close on Escape (keyboard users on desktop resizing to mobile)
+    document.addEventListener('keydown', e => {
+      if (e.key === 'Escape') closeSidebarDrawer();
     });
 
     // ─────────────────────────────────────────────────────────────────────
@@ -732,16 +854,63 @@
               expandIcon: 'legend', expanded: true,
             });
             state.mapView.ui.add(legendExpand, 'top-right');
-            // Home button (zoom back to initial extent)
-            state.mapView.ui.add(new Home({ view: state.mapView }), 'top-left');
-            // Search widget (find a tract GEOID or place)
-            state.mapView.ui.add(new Search({
+            // "Reset view" — re-fits to the currently-visible tract
+            // selection rather than the fixed initial extent. If the
+            // user has filtered to 3 counties and panned away, this
+            // brings them back to those 3 counties, not TN state view.
+            // Implemented as a custom UI div because Home always uses
+            // initial viewpoint.
+            const resetBtn = document.createElement('div');
+            resetBtn.className = 'esri-widget--button esri-widget esri-interactive';
+            resetBtn.title = 'Reset view — fit to current selection';
+            resetBtn.setAttribute('role', 'button');
+            resetBtn.setAttribute('tabindex', '0');
+            resetBtn.innerHTML = '<span class="esri-icon-zoom-in-fixed"></span>';
+            const fitToSelection = async () => {
+              try {
+                const { extent } = await state.layer.queryExtent();
+                if (extent) await state.mapView.goTo(extent.expand(1.15), { duration: 500 });
+                state.mapView.focus();
+              } catch (_) { /* best-effort */ }
+            };
+            resetBtn.addEventListener('click', fitToSelection);
+            resetBtn.addEventListener('keydown', e => {
+              if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); fitToSelection(); }
+            });
+            state.mapView.ui.add(resetBtn, 'top-left');
+            // Search widget — wrapped in Expand so it collapses to a
+            // magnifying-glass icon by default. Frees screen real estate
+            // on the map corner, matches the Basemap + Legend widgets'
+            // pattern.
+            const searchWidget = new Search({
               view: state.mapView, popupEnabled: false, resultGraphicEnabled: true,
-            }), 'top-left');
+            });
+            const searchExpand = new Expand({
+              view: state.mapView, content: searchWidget,
+              expandTooltip: 'Search a place or address',
+              collapseTooltip: 'Close search',
+              expandIcon: 'search', group: 'top-left',
+            });
+            state.mapView.ui.add(searchExpand, 'top-left');
             // Scale bar + fullscreen
             state.mapView.ui.add(new ScaleBar({ view: state.mapView, unit: 'imperial' }), 'bottom-left');
             state.mapView.ui.add(new Fullscreen({ view: state.mapView }), 'bottom-right');
-            restyleMap();
+            // Auto-focus: zoom to fit the currently-visible tracts +
+            // give the MapView keyboard focus (so arrow keys pan and
+            // +/- zoom). "Auto focus" was previously happening only as
+            // a side effect of the first restyleMap call, which
+            // occasionally raced with the layer loading.
+            (async () => {
+              try {
+                await state.layer.when();
+                const { extent } = await state.layer.queryExtent();
+                if (extent) {
+                  await state.mapView.goTo(extent.expand(1.15), { duration: 700 });
+                }
+                state.mapView.focus();
+              } catch (_) { /* best-effort */ }
+              restyleMap();
+            })();
           }, (err) => {
             clearTimeout(failTimer);
             console.error('MapView init error:', err);
