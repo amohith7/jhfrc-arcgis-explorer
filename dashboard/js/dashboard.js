@@ -640,6 +640,24 @@
     // Enter/Space activate the focused tab (native <div role="tab">
     // needs this manually). Brief 2 C4 + B5.
     const tabEls = [...document.querySelectorAll('[role="tab"]')];
+    // DIAGNOSTIC (temporary — remove once map-return-to-tab fix
+    // lands cleanly). Logs the count now, and every click that
+    // reaches document, so we can tell whether the per-tab
+    // listener attaches, whether it fires, and where a stopped
+    // click intercepted the event.
+    console.log(`[diag] tabEls at bind time: ${tabEls.length}`,
+                tabEls.map(t => `#${t.id}=${t.dataset.view}`));
+    document.addEventListener('click', ev => {
+      const t = ev.target instanceof Element ? ev.target : null;
+      if (!t) return;
+      const tab = t.closest('[role="tab"]');
+      if (tab) {
+        console.log(`[diag] document click hit tab:`,
+                    { id: tab.id, view: tab.dataset.view,
+                      target: t.tagName + (t.id ? '#' + t.id : ''),
+                      defaultPrevented: ev.defaultPrevented });
+      }
+    }, { capture: true });
     function activateTab(t) {
       if (!t) return;
       // Class + ARIA state sync — every tab off, then this one on.
