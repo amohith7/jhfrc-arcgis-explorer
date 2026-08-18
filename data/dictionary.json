@@ -1,9 +1,9 @@
 {
   "_meta": {
     "schema_version": 1,
-    "layer_name": "jhfrc_tracts_v6",
-    "layer_url": "https://services.arcgis.com/UnTXoPXBYERF0OH6/arcgis/rest/services/jhfrc_tracts_v6/FeatureServer/0",
-    "layer_item_id": "6b31f0350f8748169ff3f444fa1a8bc9",
+    "layer_name": "jhfrc_tracts_v7",
+    "layer_url": "https://services.arcgis.com/UnTXoPXBYERF0OH6/arcgis/rest/services/jhfrc_tracts_v7/FeatureServer/0",
+    "layer_item_id": "49202548c7ab4652a0db45ebc4d59cac",
     "source_item_id": "",
     "generated_for": "JHFRC Regional Explorer",
     "notes": "Per-indicator metadata for the info-icon in the dashboard UI (Brief 3 F1) and for CSV export provenance (Brief 3 D4). Every indicator carries source, table/measure id, universe, why-it-matters, main limitation, and state + national reference values. ACS reference values are 2020-2024 unless otherwise noted. PLACES reference values are 2024 release, model-based estimates. Values are approximate and intended for interpretation, not for citation without independent verification.",
@@ -39,7 +39,161 @@
     "trend_geography_note": "5-year change (delta) is computed on 2020 census tract geometry. The 2015-2019 ACS baseline (published on 2010 tract vintage) is areally re-projected onto 2020 tract geometry using the Census 2020-to-2010 tract relationship file (population-fraction apportionment for rates, primary-overlap for medians and Gini). PLACES 2019 baseline is treated the same way, and delta is computed against the current PLACES 2024 release on 2020 tract vintage. The pipeline that produced the deltas is tools/harmonize_deltas.py; the crosswalk files live at data/geo/tract_2020_to_2010_rel_st{47,13,01,37}.txt.",
     "trend_harmonization_method": "areal_2010_to_2020",
     "trend_last_harmonized": "2026-08-18",
-    "places_trend_caveat": "PLACES estimates are model-based (BRFSS + demographic covariates) and CDC's small-area model is re-fit for each release. Delta values between PLACES releases mix real epidemiological change with model refit drift, and the two cannot be separated from the published estimates alone. UI surfaces this caveat wherever a PLACES delta is displayed."
+    "places_trend_caveat": "PLACES estimates are model-based (BRFSS + demographic covariates) and CDC's small-area model is re-fit for each release. Delta values between PLACES releases mix real epidemiological change with model refit drift, and the two cannot be separated from the published estimates alone. UI surfaces this caveat wherever a PLACES delta is displayed.",
+    "universe_recipes": {
+      "TOTAL_POP": {
+        "label": "Total population",
+        "acs_vars": [
+          "B01003_001E"
+        ],
+        "formula": "B01003_001E"
+      },
+      "HOUSEHOLDS": {
+        "label": "Total households",
+        "acs_vars": [
+          "B11001_001E"
+        ],
+        "formula": "B11001_001E"
+      },
+      "HOUSING_UNITS": {
+        "label": "Total housing units",
+        "acs_vars": [
+          "B25001_001E"
+        ],
+        "formula": "B25001_001E"
+      },
+      "OWNER_OCC_UNITS": {
+        "label": "Owner-occupied housing units",
+        "acs_vars": [
+          "B25003_002E"
+        ],
+        "formula": "B25003_002E"
+      },
+      "RENTER_OCC_UNITS": {
+        "label": "Renter-occupied housing units",
+        "acs_vars": [
+          "B25003_003E"
+        ],
+        "formula": "B25003_003E"
+      },
+      "POP_25P": {
+        "label": "Population 25 years and over",
+        "acs_vars": [
+          "B15003_001E"
+        ],
+        "formula": "B15003_001E"
+      },
+      "POVERTY_UNIVERSE": {
+        "label": "Population for whom poverty status is determined",
+        "acs_vars": [
+          "B17001_001E"
+        ],
+        "formula": "B17001_001E"
+      },
+      "POP_16P": {
+        "label": "Population 16 years and over",
+        "acs_vars": [
+          "B23025_001E"
+        ],
+        "formula": "B23025_001E"
+      },
+      "CIV_NONINST": {
+        "label": "Civilian noninstitutionalized population",
+        "acs_vars": [
+          "B27001_001E"
+        ],
+        "formula": "B27001_001E"
+      },
+      "POP_5P": {
+        "label": "Population 5 years and over (derived: total - under 5)",
+        "acs_vars": [
+          "B01001_001E",
+          "B01001_003E",
+          "B01001_027E"
+        ],
+        "formula": "B01001_001E - B01001_003E - B01001_027E"
+      },
+      "POP_16_19": {
+        "label": "Population 16 to 19 years",
+        "acs_vars": [
+          "B14005_001E"
+        ],
+        "formula": "B14005_001E"
+      },
+      "ADULT_POP_18P": {
+        "label": "Adult population 18 years and over",
+        "acs_vars": [
+          "B01001_007E",
+          "B01001_008E",
+          "B01001_009E",
+          "B01001_010E",
+          "B01001_011E",
+          "B01001_012E",
+          "B01001_013E",
+          "B01001_014E",
+          "B01001_015E",
+          "B01001_016E",
+          "B01001_017E",
+          "B01001_018E",
+          "B01001_019E",
+          "B01001_020E",
+          "B01001_021E",
+          "B01001_022E",
+          "B01001_023E",
+          "B01001_024E",
+          "B01001_025E",
+          "B01001_031E",
+          "B01001_032E",
+          "B01001_033E",
+          "B01001_034E",
+          "B01001_035E",
+          "B01001_036E",
+          "B01001_037E",
+          "B01001_038E",
+          "B01001_039E",
+          "B01001_040E",
+          "B01001_041E",
+          "B01001_042E",
+          "B01001_043E",
+          "B01001_044E",
+          "B01001_045E",
+          "B01001_046E",
+          "B01001_047E",
+          "B01001_048E",
+          "B01001_049E"
+        ],
+        "formula": "B01001_007E + B01001_008E + B01001_009E + B01001_010E + B01001_011E + B01001_012E + B01001_013E + B01001_014E + B01001_015E + B01001_016E + B01001_017E + B01001_018E + B01001_019E + B01001_020E + B01001_021E + B01001_022E + B01001_023E + B01001_024E + B01001_025E + B01001_031E + B01001_032E + B01001_033E + B01001_034E + B01001_035E + B01001_036E + B01001_037E + B01001_038E + B01001_039E + B01001_040E + B01001_041E + B01001_042E + B01001_043E + B01001_044E + B01001_045E + B01001_046E + B01001_047E + B01001_048E + B01001_049E"
+      },
+      "POP_15P": {
+        "label": "Population 15 years and over",
+        "acs_vars": [
+          "B12001_001E"
+        ],
+        "formula": "B12001_001E"
+      },
+      "WORKERS_16P": {
+        "label": "Workers 16 years and over",
+        "acs_vars": [
+          "B08301_001E"
+        ],
+        "formula": "B08301_001E"
+      },
+      "HH_WITH_65P": {
+        "label": "Households by presence of persons 65 years and over",
+        "acs_vars": [
+          "B11007_001E"
+        ],
+        "formula": "B11007_001E"
+      },
+      "FAMILIES_WITH_KIDS": {
+        "label": "Families with own children under 18",
+        "acs_vars": [
+          "B09002_001E"
+        ],
+        "formula": "B09002_001E"
+      }
+    },
+    "universe_recipe_note": "Per-indicator universe fields (<indicator>.universe) name the ACS variable or formula that defines the denominator that indicator's rate is calculated against. Used for universe-weighted tract aggregation when a published county estimate is unavailable (task #123). PLACES adult measures use ADULT_POP_18P per CDC methodology."
   },
   "indicators": {
     "pov_below": {
@@ -48,7 +202,13 @@
       "unit": "percent",
       "source": "ACS",
       "table": "S1701 / B17020",
-      "universe": "Population for whom poverty status is determined",
+      "universe": {
+        "label": "Population for whom poverty status is determined",
+        "acs_vars": [
+          "B17001_001E"
+        ],
+        "formula": "B17001_001E"
+      },
       "why_it_matters": "The most common proxy for economic distress in community investment; a foundational input to CRA, CDFI, NMTC and grant scoring.",
       "limitation": "The federal poverty line is a coarse threshold and does not adjust for local cost of living; underestimates hardship in high-cost metros.",
       "us_avg": 12.4,
@@ -63,7 +223,13 @@
       "unit": "percent",
       "source": "ACS",
       "table": "B22003",
-      "universe": "Households",
+      "universe": {
+        "label": "Total households",
+        "acs_vars": [
+          "B11001_001E"
+        ],
+        "formula": "B11001_001E"
+      },
       "why_it_matters": "SNAP participation captures material food insecurity better than pure income measures.",
       "limitation": "Reflects program uptake; households eligible but not enrolled do not appear here.",
       "us_avg": 11.8,
@@ -78,7 +244,13 @@
       "unit": "percent",
       "source": "ACS",
       "table": "B19057",
-      "universe": "Households",
+      "universe": {
+        "label": "Total households",
+        "acs_vars": [
+          "B11001_001E"
+        ],
+        "formula": "B11001_001E"
+      },
       "why_it_matters": "TANF and equivalent cash-assistance reliance; a signal of the population most exposed to policy shifts.",
       "limitation": "Small absolute counts in most tracts; high MOE relative to point estimate.",
       "us_avg": 2.6,
@@ -93,7 +265,13 @@
       "unit": "percent",
       "source": "ACS",
       "table": "S2301",
-      "universe": "Civilian population age 16+",
+      "universe": {
+        "label": "Population 16 years and over",
+        "acs_vars": [
+          "B23025_001E"
+        ],
+        "formula": "B23025_001E"
+      },
       "why_it_matters": "Employment rate on the tract's own denominator, not the labor-force denominator; useful for community-benefit prioritization.",
       "limitation": "Point-in-time; does not reflect underemployment or informal work.",
       "us_avg": 59.7,
@@ -108,7 +286,13 @@
       "unit": "percent",
       "source": "ACS",
       "table": "S2301",
-      "universe": "Civilian population age 16+",
+      "universe": {
+        "label": "Population 16 years and over",
+        "acs_vars": [
+          "B23025_001E"
+        ],
+        "formula": "B23025_001E"
+      },
       "why_it_matters": "Complements the employment rate; a high share paired with low retirement-age share signals hidden unemployment.",
       "limitation": "Includes retirees, students, caregivers; interpret alongside age structure.",
       "us_avg": 36.5,
@@ -138,7 +322,13 @@
       "unit": "currency",
       "source": "ACS",
       "table": "B19301",
-      "universe": "Total population",
+      "universe": {
+        "label": "Total population",
+        "acs_vars": [
+          "B01003_001E"
+        ],
+        "formula": "B01003_001E"
+      },
       "why_it_matters": "Per-capita income normalizes for household size differences; use alongside median household income.",
       "limitation": "Mean is pulled by high-income outliers.",
       "us_avg": 43289,
@@ -153,7 +343,13 @@
       "unit": "index",
       "source": "ACS",
       "table": "B19083",
-      "universe": "Households",
+      "universe": {
+        "label": "Total households",
+        "acs_vars": [
+          "B11001_001E"
+        ],
+        "formula": "B11001_001E"
+      },
       "why_it_matters": "Within-tract income dispersion; a high Gini in a nominally affluent tract can indicate a distressed subpopulation.",
       "limitation": "Tract-level Gini has wide MOEs; treat as a rough band, not a precise value.",
       "us_avg": 0.48,
@@ -168,7 +364,13 @@
       "unit": "percent",
       "source": "ACS",
       "table": "S1501",
-      "universe": "Population age 25+",
+      "universe": {
+        "label": "Population 25 years and over",
+        "acs_vars": [
+          "B15003_001E"
+        ],
+        "formula": "B15003_001E"
+      },
       "why_it_matters": "The single most-used education gap indicator; drives workforce and adult-ed programming siting.",
       "limitation": "Immigrant-heavy tracts can show elevated values with high correlated foreign-born share.",
       "us_avg": 10.5,
@@ -183,7 +385,13 @@
       "unit": "percent",
       "source": "ACS",
       "table": "S1501",
-      "universe": "Population age 25+",
+      "universe": {
+        "label": "Population 25 years and over",
+        "acs_vars": [
+          "B15003_001E"
+        ],
+        "formula": "B15003_001E"
+      },
       "why_it_matters": "Broad indicator of local workforce readiness — sums associate, bachelor's, and graduate degrees.",
       "limitation": "Does not distinguish credentials with vs. without labor-market value.",
       "us_avg": 65.0,
@@ -198,7 +406,13 @@
       "unit": "percent",
       "source": "ACS",
       "table": "S1501",
-      "universe": "Population age 25+",
+      "universe": {
+        "label": "Population 25 years and over",
+        "acs_vars": [
+          "B15003_001E"
+        ],
+        "formula": "B15003_001E"
+      },
       "why_it_matters": "Community-college attainment; a useful marker for local workforce pipelines.",
       "limitation": "Excludes those who moved on to a bachelor's.",
       "us_avg": 8.9,
@@ -213,7 +427,13 @@
       "unit": "percent",
       "source": "ACS",
       "table": "S1501",
-      "universe": "Population age 25+",
+      "universe": {
+        "label": "Population 25 years and over",
+        "acs_vars": [
+          "B15003_001E"
+        ],
+        "formula": "B15003_001E"
+      },
       "why_it_matters": "Standard human-capital indicator; correlates strongly with income and health outcomes at tract scale.",
       "limitation": "Not sensitive to STEM-vs-liberal-arts mix or credential quality.",
       "us_avg": 22.7,
@@ -228,7 +448,13 @@
       "unit": "percent",
       "source": "ACS",
       "table": "S1501",
-      "universe": "Population age 25+",
+      "universe": {
+        "label": "Population 25 years and over",
+        "acs_vars": [
+          "B15003_001E"
+        ],
+        "formula": "B15003_001E"
+      },
       "why_it_matters": "High-skill workforce concentration; a signal of professional-services capacity in an area.",
       "limitation": "Tract-level MOEs are wide for low-share tracts.",
       "us_avg": 14.3,
@@ -243,7 +469,13 @@
       "unit": "percent",
       "source": "ACS",
       "table": "B14005",
-      "universe": "Population ages 16-19",
+      "universe": {
+        "label": "Population 16 to 19 years",
+        "acs_vars": [
+          "B14005_001E"
+        ],
+        "formula": "B14005_001E"
+      },
       "why_it_matters": "Disconnected-youth indicator; correlates with intergenerational poverty and criminal-justice risk.",
       "limitation": "Tiny denominators in many tracts; treat as unstable below n = 30.",
       "us_avg": 6.5,
@@ -258,7 +490,13 @@
       "unit": "percent",
       "source": "ACS",
       "table": "S1810",
-      "universe": "Civilian noninstitutionalized population",
+      "universe": {
+        "label": "Civilian noninstitutionalized population",
+        "acs_vars": [
+          "B27001_001E"
+        ],
+        "formula": "B27001_001E"
+      },
       "why_it_matters": "Foundational access indicator; drives ADA, transit, and health-service siting.",
       "limitation": "Self-reported; captures both severity and cultural reporting differences.",
       "us_avg": 12.9,
@@ -273,7 +511,13 @@
       "unit": "percent",
       "source": "ACS",
       "table": "S2701",
-      "universe": "Civilian noninstitutionalized population ages 18-64",
+      "universe": {
+        "label": "Civilian noninstitutionalized population",
+        "acs_vars": [
+          "B27001_001E"
+        ],
+        "formula": "B27001_001E"
+      },
       "why_it_matters": "The most decision-relevant health-access indicator for FQHC, hospital community-benefit, and Medicaid outreach planning.",
       "limitation": "Point-in-time snapshot; does not reflect coverage churn.",
       "us_avg": 12.3,
@@ -288,7 +532,13 @@
       "unit": "percent",
       "source": "ACS",
       "table": "S2701",
-      "universe": "Civilian noninstitutionalized population",
+      "universe": {
+        "label": "Civilian noninstitutionalized population",
+        "acs_vars": [
+          "B27001_001E"
+        ],
+        "formula": "B27001_001E"
+      },
       "why_it_matters": "Payer-mix input for hospitals and physician practices considering a site.",
       "limitation": "Does not distinguish employer-sponsored, individual-market, or exchange coverage.",
       "us_avg": 65.4,
@@ -303,7 +553,13 @@
       "unit": "percent",
       "source": "ACS",
       "table": "S2701",
-      "universe": "Civilian noninstitutionalized population",
+      "universe": {
+        "label": "Civilian noninstitutionalized population",
+        "acs_vars": [
+          "B27001_001E"
+        ],
+        "formula": "B27001_001E"
+      },
       "why_it_matters": "Direct input to safety-net capacity planning; the primary payer for FQHCs and behavioral-health providers.",
       "limitation": "Tennessee is a non-expansion state; interpret differently from expansion-state values.",
       "us_avg": 21.2,
@@ -382,7 +638,50 @@
       "unit": "percent",
       "source": "PLACES",
       "measure_id": "BPMED",
-      "universe": "Adults age 18+ with hypertension",
+      "universe": {
+        "label": "Adult population 18 years and over",
+        "acs_vars": [
+          "B01001_007E",
+          "B01001_008E",
+          "B01001_009E",
+          "B01001_010E",
+          "B01001_011E",
+          "B01001_012E",
+          "B01001_013E",
+          "B01001_014E",
+          "B01001_015E",
+          "B01001_016E",
+          "B01001_017E",
+          "B01001_018E",
+          "B01001_019E",
+          "B01001_020E",
+          "B01001_021E",
+          "B01001_022E",
+          "B01001_023E",
+          "B01001_024E",
+          "B01001_025E",
+          "B01001_031E",
+          "B01001_032E",
+          "B01001_033E",
+          "B01001_034E",
+          "B01001_035E",
+          "B01001_036E",
+          "B01001_037E",
+          "B01001_038E",
+          "B01001_039E",
+          "B01001_040E",
+          "B01001_041E",
+          "B01001_042E",
+          "B01001_043E",
+          "B01001_044E",
+          "B01001_045E",
+          "B01001_046E",
+          "B01001_047E",
+          "B01001_048E",
+          "B01001_049E"
+        ],
+        "formula": "B01001_007E + B01001_008E + B01001_009E + B01001_010E + B01001_011E + B01001_012E + B01001_013E + B01001_014E + B01001_015E + B01001_016E + B01001_017E + B01001_018E + B01001_019E + B01001_020E + B01001_021E + B01001_022E + B01001_023E + B01001_024E + B01001_025E + B01001_031E + B01001_032E + B01001_033E + B01001_034E + B01001_035E + B01001_036E + B01001_037E + B01001_038E + B01001_039E + B01001_040E + B01001_041E + B01001_042E + B01001_043E + B01001_044E + B01001_045E + B01001_046E + B01001_047E + B01001_048E + B01001_049E"
+      },
       "why_it_matters": "Treatment-adherence proxy; complements the hypertension prevalence indicator.",
       "limitation": "Denominator is those with hypertension, not the full adult population.",
       "us_avg": 75.8,
@@ -542,7 +841,50 @@
       "unit": "percent",
       "source": "PLACES",
       "measure_id": "LPA",
-      "universe": "Adults age 18+",
+      "universe": {
+        "label": "Adult population 18 years and over",
+        "acs_vars": [
+          "B01001_007E",
+          "B01001_008E",
+          "B01001_009E",
+          "B01001_010E",
+          "B01001_011E",
+          "B01001_012E",
+          "B01001_013E",
+          "B01001_014E",
+          "B01001_015E",
+          "B01001_016E",
+          "B01001_017E",
+          "B01001_018E",
+          "B01001_019E",
+          "B01001_020E",
+          "B01001_021E",
+          "B01001_022E",
+          "B01001_023E",
+          "B01001_024E",
+          "B01001_025E",
+          "B01001_031E",
+          "B01001_032E",
+          "B01001_033E",
+          "B01001_034E",
+          "B01001_035E",
+          "B01001_036E",
+          "B01001_037E",
+          "B01001_038E",
+          "B01001_039E",
+          "B01001_040E",
+          "B01001_041E",
+          "B01001_042E",
+          "B01001_043E",
+          "B01001_044E",
+          "B01001_045E",
+          "B01001_046E",
+          "B01001_047E",
+          "B01001_048E",
+          "B01001_049E"
+        ],
+        "formula": "B01001_007E + B01001_008E + B01001_009E + B01001_010E + B01001_011E + B01001_012E + B01001_013E + B01001_014E + B01001_015E + B01001_016E + B01001_017E + B01001_018E + B01001_019E + B01001_020E + B01001_021E + B01001_022E + B01001_023E + B01001_024E + B01001_025E + B01001_031E + B01001_032E + B01001_033E + B01001_034E + B01001_035E + B01001_036E + B01001_037E + B01001_038E + B01001_039E + B01001_040E + B01001_041E + B01001_042E + B01001_043E + B01001_044E + B01001_045E + B01001_046E + B01001_047E + B01001_048E + B01001_049E"
+      },
       "why_it_matters": "Physical-inactivity signal; a large driver of the chronic-disease cluster.",
       "limitation": "Self-reported and threshold-sensitive.",
       "us_avg": 25.4,
@@ -620,7 +962,13 @@
       "unit": "percent",
       "source": "ACS",
       "table": "B25003",
-      "universe": "Occupied housing units",
+      "universe": {
+        "label": "Total households",
+        "acs_vars": [
+          "B11001_001E"
+        ],
+        "formula": "B11001_001E"
+      },
       "why_it_matters": "Ownership rate signal; relevant to community stability and lending demand.",
       "limitation": "Does not distinguish outright-owned from mortgaged.",
       "us_avg": 65.2,
@@ -635,7 +983,13 @@
       "unit": "percent",
       "source": "ACS",
       "table": "B25003",
-      "universe": "Occupied housing units",
+      "universe": {
+        "label": "Total households",
+        "acs_vars": [
+          "B11001_001E"
+        ],
+        "formula": "B11001_001E"
+      },
       "why_it_matters": "Rental market share; input to rental-housing investment analysis.",
       "limitation": "Complements owner-occupied; not independent of it.",
       "us_avg": 34.8,
@@ -650,7 +1004,13 @@
       "unit": "percent",
       "source": "ACS",
       "table": "B25002",
-      "universe": "Housing units",
+      "universe": {
+        "label": "Total housing units",
+        "acs_vars": [
+          "B25001_001E"
+        ],
+        "formula": "B25001_001E"
+      },
       "why_it_matters": "Vacancy signal; combined with population trend informs whether a tract is losing or gaining.",
       "limitation": "Includes seasonal/vacation units; interpret alongside geography.",
       "us_avg": 10.4,
@@ -665,7 +1025,13 @@
       "unit": "percent",
       "source": "ACS",
       "table": "S2506",
-      "universe": "Owner-occupied housing units with a mortgage",
+      "universe": {
+        "label": "Owner-occupied housing units",
+        "acs_vars": [
+          "B25003_002E"
+        ],
+        "formula": "B25003_002E"
+      },
       "why_it_matters": "Owner cost-burden signal; drives owner-side housing-affordability programming.",
       "limitation": "Does not distinguish moderate vs. severe cost burden (30-49% vs 50%+).",
       "us_avg": 27.5,
@@ -680,7 +1046,13 @@
       "unit": "percent",
       "source": "ACS",
       "table": "S2503",
-      "universe": "Renter-occupied housing units",
+      "universe": {
+        "label": "Renter-occupied housing units",
+        "acs_vars": [
+          "B25003_003E"
+        ],
+        "formula": "B25003_003E"
+      },
       "why_it_matters": "Rental cost-burden signal; the most common trigger for affordable-housing investment.",
       "limitation": "Does not distinguish moderate vs. severe cost burden.",
       "us_avg": 49.3,
@@ -695,7 +1067,13 @@
       "unit": "percent",
       "source": "ACS",
       "table": "B25034",
-      "universe": "Housing units",
+      "universe": {
+        "label": "Total housing units",
+        "acs_vars": [
+          "B25001_001E"
+        ],
+        "formula": "B25001_001E"
+      },
       "why_it_matters": "Proxy for lead-paint risk and rehabilitation-investment opportunity.",
       "limitation": "Age alone does not indicate condition; a well-maintained older home is not a hazard.",
       "us_avg": 34.7,
@@ -710,7 +1088,13 @@
       "unit": "percent",
       "source": "ACS",
       "table": "S2801",
-      "universe": "Households",
+      "universe": {
+        "label": "Total households",
+        "acs_vars": [
+          "B11001_001E"
+        ],
+        "formula": "B11001_001E"
+      },
       "why_it_matters": "Digital-infrastructure signal; drives BEAD program and rural broadband investment analysis.",
       "limitation": "Self-reported subscription, not measured speed or reliability.",
       "us_avg": 90.3,
@@ -725,7 +1109,13 @@
       "unit": "percent",
       "source": "ACS",
       "table": "S2801",
-      "universe": "Households",
+      "universe": {
+        "label": "Total households",
+        "acs_vars": [
+          "B11001_001E"
+        ],
+        "formula": "B11001_001E"
+      },
       "why_it_matters": "Complements broadband access; captures the fully-disconnected slice.",
       "limitation": "Includes households who declined to subscribe as well as those with no service available.",
       "us_avg": 6.4,
@@ -740,7 +1130,13 @@
       "unit": "percent",
       "source": "ACS",
       "table": "B08201",
-      "universe": "Households",
+      "universe": {
+        "label": "Total households",
+        "acs_vars": [
+          "B11001_001E"
+        ],
+        "formula": "B11001_001E"
+      },
       "why_it_matters": "Transportation-access signal; a large lever for health, food, and employment access.",
       "limitation": "Interpreted differently in transit-rich vs. transit-poor tracts.",
       "us_avg": 8.4,
@@ -755,7 +1151,13 @@
       "unit": "percent",
       "source": "ACS",
       "table": "S0801",
-      "universe": "Workers age 16+",
+      "universe": {
+        "label": "Workers 16 years and over",
+        "acs_vars": [
+          "B08301_001E"
+        ],
+        "formula": "B08301_001E"
+      },
       "why_it_matters": "Transit demand signal; input to service-planning and TOD analysis.",
       "limitation": "Reflects commute mode, not off-peak or intra-region travel.",
       "us_avg": 3.1,
@@ -770,7 +1172,13 @@
       "unit": "percent",
       "source": "ACS",
       "table": "S0801",
-      "universe": "Workers age 16+",
+      "universe": {
+        "label": "Workers 16 years and over",
+        "acs_vars": [
+          "B08301_001E"
+        ],
+        "formula": "B08301_001E"
+      },
       "why_it_matters": "Walkable-neighborhood signal; complements transit share.",
       "limitation": "Overestimates in college-town tracts and downtown employment cores.",
       "us_avg": 2.5,
@@ -785,7 +1193,13 @@
       "unit": "percent",
       "source": "ACS",
       "table": "S0101",
-      "universe": "Total population",
+      "universe": {
+        "label": "Total population",
+        "acs_vars": [
+          "B01003_001E"
+        ],
+        "formula": "B01003_001E"
+      },
       "why_it_matters": "Aging population share; drives senior-service, home-health, and aging-in-place programming.",
       "limitation": "Not sensitive to health-status differences within the 65+ population.",
       "us_avg": 17.3,
@@ -800,7 +1214,13 @@
       "unit": "percent",
       "source": "ACS",
       "table": "S0101",
-      "universe": "Total population",
+      "universe": {
+        "label": "Total population",
+        "acs_vars": [
+          "B01003_001E"
+        ],
+        "formula": "B01003_001E"
+      },
       "why_it_matters": "Working-age share; a coarse but useful workforce-availability signal.",
       "limitation": "Does not distinguish employed, unemployed, or students.",
       "us_avg": 61.4,
@@ -830,7 +1250,13 @@
       "unit": "percent",
       "source": "ACS",
       "table": "S1101",
-      "universe": "Family households with children under 18",
+      "universe": {
+        "label": "Families with own children under 18",
+        "acs_vars": [
+          "B09002_001E"
+        ],
+        "formula": "B09002_001E"
+      },
       "why_it_matters": "Family-structure signal; correlates with childcare and school-based support demand.",
       "limitation": "Does not indicate the presence of extended-family support.",
       "us_avg": 22.7,
@@ -845,7 +1271,13 @@
       "unit": "percent",
       "source": "ACS",
       "table": "S1101",
-      "universe": "Households",
+      "universe": {
+        "label": "Households by presence of persons 65 years and over",
+        "acs_vars": [
+          "B11007_001E"
+        ],
+        "formula": "B11007_001E"
+      },
       "why_it_matters": "Social-isolation signal for the elderly; a leading input to senior-service outreach planning.",
       "limitation": "Household composition alone does not measure social contact.",
       "us_avg": 12.4,
@@ -861,7 +1293,13 @@
       "decimals": 2,
       "source": "ACS",
       "table": "B25010",
-      "universe": "Occupied housing units",
+      "universe": {
+        "label": "Total households",
+        "acs_vars": [
+          "B11001_001E"
+        ],
+        "formula": "B11001_001E"
+      },
       "why_it_matters": "Complements per-capita income; captures family-size structure of a tract.",
       "limitation": "Group-quarters populations distort in college-town or nursing-home-heavy tracts.",
       "us_avg": 2.55,
@@ -876,7 +1314,13 @@
       "unit": "percent",
       "source": "ACS",
       "table": "B12001",
-      "universe": "Population age 15+",
+      "universe": {
+        "label": "Population 15 years and over",
+        "acs_vars": [
+          "B12001_001E"
+        ],
+        "formula": "B12001_001E"
+      },
       "why_it_matters": "Family-structure descriptor; correlated with owner-occupancy and household income.",
       "limitation": "Does not distinguish first vs. remarriage or same-sex vs. opposite-sex couples.",
       "us_avg": 47.9,
@@ -891,7 +1335,13 @@
       "unit": "percent",
       "source": "ACS",
       "table": "B03002",
-      "universe": "Total population",
+      "universe": {
+        "label": "Total population",
+        "acs_vars": [
+          "B01003_001E"
+        ],
+        "formula": "B01003_001E"
+      },
       "why_it_matters": "DESCRIPTIVE CONTEXT ONLY. This indicator MUST NOT enter any composite score, ranking, or best/worst determination. Fair Lending and Fair Housing exposure — see governance notes.",
       "limitation": "Category not mutually exclusive with racial categories.",
       "us_avg": 19.5,
@@ -906,7 +1356,13 @@
       "unit": "percent",
       "source": "ACS",
       "table": "B03002",
-      "universe": "Total population",
+      "universe": {
+        "label": "Total population",
+        "acs_vars": [
+          "B01003_001E"
+        ],
+        "formula": "B01003_001E"
+      },
       "why_it_matters": "DESCRIPTIVE CONTEXT ONLY. This indicator MUST NOT enter any composite score, ranking, or best/worst determination. Fair Lending and Fair Housing exposure — see governance notes.",
       "limitation": "Non-Hispanic Black; interpret alongside Hispanic share.",
       "us_avg": 12.6,
@@ -921,7 +1377,13 @@
       "unit": "percent",
       "source": "ACS",
       "table": "B03002",
-      "universe": "Total population",
+      "universe": {
+        "label": "Total population",
+        "acs_vars": [
+          "B01003_001E"
+        ],
+        "formula": "B01003_001E"
+      },
       "why_it_matters": "DESCRIPTIVE CONTEXT ONLY. This indicator MUST NOT enter any composite score, ranking, or best/worst determination. Fair Lending and Fair Housing exposure — see governance notes.",
       "limitation": "Non-Hispanic White; interpret alongside Hispanic share.",
       "us_avg": 58.9,
@@ -936,7 +1398,13 @@
       "unit": "percent",
       "source": "ACS",
       "table": "B03002",
-      "universe": "Total population",
+      "universe": {
+        "label": "Total population",
+        "acs_vars": [
+          "B01003_001E"
+        ],
+        "formula": "B01003_001E"
+      },
       "why_it_matters": "DESCRIPTIVE CONTEXT ONLY. This indicator MUST NOT enter any composite score, ranking, or best/worst determination. Fair Lending and Fair Housing exposure — see governance notes.",
       "limitation": "Non-Hispanic Asian; aggregates a heterogeneous set of national origins.",
       "us_avg": 6.3,
@@ -951,7 +1419,13 @@
       "unit": "percent",
       "source": "ACS",
       "table": "B05002",
-      "universe": "Total population",
+      "universe": {
+        "label": "Total population",
+        "acs_vars": [
+          "B01003_001E"
+        ],
+        "formula": "B01003_001E"
+      },
       "why_it_matters": "DESCRIPTIVE CONTEXT ONLY. This indicator MUST NOT enter any composite score, ranking, or best/worst determination. Fair Lending and Fair Housing exposure — see governance notes.",
       "limitation": "Includes naturalized citizens and non-citizens; does not distinguish immigration status.",
       "us_avg": 13.9,
@@ -966,7 +1440,15 @@
       "unit": "percent",
       "source": "ACS",
       "table": "S1601",
-      "universe": "Population age 5+",
+      "universe": {
+        "label": "Population 5 years and over (derived: total - under 5)",
+        "acs_vars": [
+          "B01001_001E",
+          "B01001_003E",
+          "B01001_027E"
+        ],
+        "formula": "B01001_001E - B01001_003E - B01001_027E"
+      },
       "why_it_matters": "DESCRIPTIVE CONTEXT ONLY. This indicator MUST NOT enter any composite score, ranking, or best/worst determination. Fair Lending and Fair Housing exposure — see governance notes.",
       "limitation": "Home language, not English proficiency.",
       "us_avg": 13.4,

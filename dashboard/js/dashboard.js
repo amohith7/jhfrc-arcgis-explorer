@@ -139,7 +139,7 @@
       return list;
     }
 
-    const LAYER_URL = 'https://services.arcgis.com/UnTXoPXBYERF0OH6/arcgis/rest/services/jhfrc_tracts_v6/FeatureServer/0';
+    const LAYER_URL = 'https://services.arcgis.com/UnTXoPXBYERF0OH6/arcgis/rest/services/jhfrc_tracts_v7/FeatureServer/0';
 
     const state = {
       features: [], counties: new Set(),
@@ -855,24 +855,52 @@
         'source_estimate',         // ACS tract estimates are as-published
       ];
     }
-    // Task #118 — retire the unweighted-mean county number. The
-    // authoritative value is the published <CountyValue> from the
-    // Community Profiles XML, plumbed through as
-    // <indicator.id>_county on the layer. All tracts in a county
-    // carry the same value; read from the first available.
-    // Universe-weighted tract-aggregation fallback is deferred to
-    // #123 — for now, missing published value renders blank and
-    // estimate_basis records "blank".
+    // Task #118 primary path + task #123 fallback. Tiered county
+    // number:
+    //   1. Published <CountyValue> from the Community Profiles XML
+    //      (plumbed through as <indicator.id>_county on the layer).
+    //      All tracts in a county carry the same value; read from the
+    //      first available.
+    //   2. Universe-weighted tract aggregation when the published
+    //      value is missing but a per-tract universe field
+    //      (<indicator.id>_univ) is available. Aggregation is
+    //      sum(rate * universe) / sum(universe) — mathematically
+    //      equivalent to sum(numerators)/sum(denominators) when
+    //      rate = numerator/denominator, which is the correct
+    //      reconstruction of the county rate.
+    //   3. Blank if neither a published value nor a defensible
+    //      universe-weighted aggregation is available.
+    // Never falls back to an unweighted mean.
     function _countyValue(countyName, ind, tracts) {
-      const field = ind.id + '_county';
-      const hasField = !state.presentFields || state.presentFields.has(field);
-      if (!hasField || !tracts || !tracts.length) {
+      const countyField = ind.id + '_county';
+      const univField   = ind.id + '_univ';
+      const valField    = ind.id;
+      const has = f => !state.presentFields || state.presentFields.has(f);
+      if (!tracts || !tracts.length) {
         return { value: null, basis: 'blank' };
       }
-      for (const t of tracts) {
-        const v = t[field];
-        if (v != null && !isNaN(v)) {
-          return { value: v, basis: 'published_source' };
+      // Path 1 — published county estimate
+      if (has(countyField)) {
+        for (const t of tracts) {
+          const v = t[countyField];
+          if (v != null && !isNaN(v)) {
+            return { value: v, basis: 'published_source' };
+          }
+        }
+      }
+      // Path 2 — universe-weighted tract aggregation
+      if (has(univField) && has(valField)) {
+        let wv = 0, w = 0, n = 0;
+        for (const t of tracts) {
+          const r = t[valField];
+          const u = t[univField];
+          if (r == null || isNaN(r) || u == null || isNaN(u) || u <= 0) continue;
+          wv += r * u;
+          w  += u;
+          n  += 1;
+        }
+        if (n >= 1 && w > 0) {
+          return { value: wv / w, basis: 'tract_aggregation' };
         }
       }
       return { value: null, basis: 'blank' };
@@ -1711,14 +1739,13 @@
       const selected = [...selectedCounties()].sort();
       const header = document.getElementById('compareHeaderRow');
       const tbody = document.querySelector('#compareTable tbody');
-      // Task #118 — each cell is now the published <CountyValue>
-      // from the Community Profiles XML (via <indicator>_county on
-      // the layer), NOT an unweighted mean of tract rates. When the
-      // published value is unavailable the cell is blank ("—");
-      // universe-weighted aggregation fallback is deferred to #123.
+      // Tiered county number per _countyValue(): (1) published
+      // <CountyValue> from the Community Profiles XML, or (2)
+      // universe-weighted tract aggregation (task #123), or (3)
+      // blank. Never an unweighted mean.
       header.innerHTML = '<th>Indicator</th>' +
-        selected.map(c => `<th class="num" title="Published county estimate from the Community Profiles source XML">${c}<br><span style="font-weight:400; font-size:10px; color:#9ca3af;">published county estimate</span></th>`).join('') +
-        '<th class="num" title="County with the most-favorable published value, given the indicator direction. Counties without a published value are excluded from the ranking.">Best</th>';
+        selected.map(c => `<th class="num" title="Published county estimate where available, otherwise universe-weighted aggregation of tract estimates. Every cell is labeled with its provenance.">${c}<br><span style="font-weight:400; font-size:10px; color:#9ca3af;">county estimate</span></th>`).join('') +
+        '<th class="num" title="County with the most-favorable value, given the indicator direction. Counties without an available value are excluded from the ranking.">Best</th>';
       tbody.innerHTML = '';
       if (selected.length === 0) {
         tbody.innerHTML = '<tr><td colspan="99" style="color:#6b7280; padding:16px;">' +
@@ -1757,9 +1784,19 @@
           }
         }
         const tr = document.createElement('tr');
-        const cellsHtml = cells.map(({ value }) =>
-          `<td class="num">${value == null ? '<span style="color:#9ca3af;" title="No published county estimate available for this indicator.">&mdash;</span>' : fmt(value, ind)}</td>`
-        ).join('');
+        // Every cell displays its provenance: a small superscript
+        // marker "‡" indicates universe-weighted aggregation from
+        // tract estimates (title tooltip explains). Published cells
+        // render as-is. Blank cells show an em-dash.
+        const cellsHtml = cells.map(({ value, basis }) => {
+          if (value == null) {
+            return '<td class="num"><span style="color:#9ca3af;" title="No published county estimate and no defensible universe-weighted aggregation available for this indicator.">&mdash;</span></td>';
+          }
+          if (basis === 'tract_aggregation') {
+            return `<td class="num" title="Aggregated from tract estimates; no direct county estimate available.">${fmt(value, ind)}<sup style="color:#a16207; font-weight:600; margin-left:2px;">‡</sup></td>`;
+          }
+          return `<td class="num">${fmt(value, ind)}</td>`;
+        }).join('');
         const bestCls = bestName !== '—' ? 'better' : 'same';
         tr.innerHTML = `<td>${ind.label}</td>${cellsHtml}<td class="num ${bestCls}">${bestName}</td>`;
         tbody.appendChild(tr);

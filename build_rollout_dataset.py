@@ -154,6 +154,11 @@ def parse_county_xml(xml_path: Path) -> list[dict]:
                     "trend_harmonization_method": None,
                     "trend_harmonization_coverage": None,
                     "n_source_tracts_for_delta": None,
+                    # Universe (denominator) for universe-weighted tract
+                    # aggregation when no <CountyValue> is published.
+                    # Populated by apply_universes() from
+                    # data/acs_universes.parquet. Task #123.
+                    "universe": None,
                 }
             )
     return rows
@@ -318,6 +323,82 @@ def apply_harmonized_deltas(rows: list[dict], data_dir: Path) -> None:
     )
 
 
+def apply_universes(rows: list[dict], data_dir: Path) -> None:
+    """Attach per-(tract, indicator) universe values to each row.
+
+    Reads data/acs_universes.parquet (produced by
+    tools/pull_acs_universes.py) and data/dictionary.json (for the
+    indicator label -> short_id map). Each row's "universe" slot is
+    populated when a matching (tract_geoid, short_id) row exists in
+    the parquet; otherwise left None. Downstream:
+    build_arcgis_layer.py pivots this into <short>_univ so the
+    dashboard can do universe-weighted county aggregation as a
+    fallback when the published <CountyValue> is missing. Task #123.
+    """
+    parquet = data_dir / "acs_universes.parquet"
+    dict_path = data_dir / "dictionary.json"
+    if not parquet.exists():
+        print(
+            f"\nNOTE: {parquet.name} not found. Skipping universe join. "
+            f"Run tools/pull_acs_universes.py to produce it."
+        )
+        return
+    if pd is None:  # type: ignore[has-type]
+        print(f"\nNOTE: pandas unavailable; skipping universe join.")
+        return
+    if not dict_path.exists():
+        print(f"\nNOTE: {dict_path.name} not found; skipping universe join.")
+        return
+
+    import json as _json
+
+    d = _json.loads(dict_path.read_text())
+
+    # Normalize labels on both sides for the JOIN KEY ONLY: lowercase,
+    # then strip every non-alphanumeric character. XML and dictionary
+    # labels diverge on whitespace ("Medication(%)" vs "Medication (%)"),
+    # unicode dashes ("16-19" vs "16–19"), and inequality symbols
+    # ("Paying >=30%" vs "Paying ≥30%"). Alphanumeric-only makes
+    # every variant reduce to the same key. The original label text is
+    # preserved everywhere else.
+    import re as _re
+
+    def _norm_label(s):
+        return _re.sub(r"[^a-z0-9]+", "", (s or "").lower())
+
+    label_to_short: dict[str, str] = {}
+    for short, entry in d.get("indicators", {}).items():
+        label = entry.get("label")
+        if label:
+            label_to_short[_norm_label(label)] = short
+
+    print(f"\nAttaching universes from {parquet.name} ...")
+    udf = pd.read_parquet(parquet)
+    lookup: dict[tuple[str, str], float] = {}
+    for r in udf.itertuples(index=False):
+        u = r.universe
+        if u is None or (isinstance(u, float) and np.isnan(u)):
+            continue
+        lookup[(str(r.tract_geoid).zfill(11), str(r.indicator_id))] = float(u)
+
+    n_matched = n_no_recipe = n_no_data = 0
+    for row in rows:
+        short = label_to_short.get(_norm_label(row["indicator_name"]))
+        if not short:
+            n_no_recipe += 1
+            continue
+        val = lookup.get((row["tract_geoid"], short))
+        if val is None:
+            n_no_data += 1
+            continue
+        row["universe"] = val
+        n_matched += 1
+    print(
+        f"  matched: {n_matched:,} rows | "
+        f"no recipe: {n_no_recipe:,} | no data: {n_no_data:,}"
+    )
+
+
 def main(argv: Iterable[str] | None = None) -> int:
     ap = argparse.ArgumentParser(
         description="Aggregate per-county XML outputs into a tidy dataset."
@@ -355,6 +436,11 @@ def main(argv: Iterable[str] | None = None) -> int:
     # values onto 2020 geometry via areal apportionment (or primary-
     # overlap for medians) and computes fresh deltas.
     apply_harmonized_deltas(all_rows, args.data_dir)
+
+    # Task #123: attach per-tract universe values so build_arcgis_layer
+    # can emit <indicator>_univ fields and the dashboard can do
+    # universe-weighted aggregation when <CountyValue> is missing.
+    apply_universes(all_rows, args.data_dir)
 
     write_outputs(all_rows, args.data_dir)
 
