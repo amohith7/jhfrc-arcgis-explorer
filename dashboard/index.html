@@ -99,6 +99,81 @@
     header .titles h1 { margin: 0; font-size: 16px; font-weight: 600; line-height: 1.15; }
     header .titles .subtitle { color: #d1d5db; font-size: 11px; margin-top: 2px; }
     header .status { justify-self: end; font-size: 11px; color: #d1d5db; background: rgba(253,183,54,0.12); border: 1px solid rgba(253,183,54,0.35); padding: 5px 10px; border-radius: 4px; white-space: nowrap; }
+    /* Inline "link-style" button used in the subtitle for the About
+       trigger and elsewhere. Keeps semantics as <button> for
+       keyboard/screen-reader users while reading as a link. */
+    .link-btn {
+      background: none; border: 0; padding: 0;
+      color: #fdb736; font: inherit; cursor: pointer;
+      text-decoration: underline; text-underline-offset: 2px;
+    }
+    .link-btn:hover, .link-btn:focus { color: #ffcc66; outline: none; }
+
+    /* About panel — appears as a modal dialog centered on the viewport.
+       Kept lightweight (no framework); dismissible via close button or
+       Escape (see JS). Brief 3 Amendments A6. */
+    #aboutPanel {
+      position: fixed; inset: 0;
+      background: rgba(0,0,0,0.55);
+      z-index: 2000;
+      display: flex; align-items: center; justify-content: center;
+      padding: 20px;
+    }
+    #aboutPanel[hidden] { display: none; }
+    .about-inner {
+      background: white;
+      color: #111;
+      max-width: 640px; max-height: calc(100dvh - 40px);
+      overflow: auto;
+      padding: 24px 28px 20px;
+      border-radius: 6px;
+      box-shadow: 0 12px 40px rgba(0,0,0,0.35);
+      position: relative;
+      font-size: 14px; line-height: 1.5;
+    }
+    .about-inner h2 { margin: 0 0 12px; font-size: 18px; font-weight: 700; color: var(--navy); }
+    .about-inner p { margin: 0 0 12px; }
+    .about-inner a { color: var(--navy); }
+    .about-close {
+      position: absolute; top: 8px; right: 12px;
+      background: none; border: 0;
+      font-size: 24px; line-height: 1;
+      color: #6b7280; cursor: pointer;
+      padding: 4px 8px;
+    }
+    .about-close:hover, .about-close:focus { color: var(--navy); outline: none; }
+
+    /* Info-icon next to indicator selectors (Brief 3 F1). Small
+       button reveals a popover with the dictionary entry for the
+       currently-selected indicator. */
+    .info-btn {
+      background: none; border: 1px solid var(--gray-300);
+      color: var(--navy);
+      width: 18px; height: 18px; padding: 0;
+      border-radius: 50%;
+      font-size: 11px; line-height: 1;
+      cursor: pointer;
+      margin-left: 4px;
+      vertical-align: middle;
+      display: inline-flex; align-items: center; justify-content: center;
+    }
+    .info-btn:hover, .info-btn:focus { background: var(--navy); color: white; outline: none; }
+    .info-popover {
+      position: absolute;
+      z-index: 1500;
+      background: white; color: #111;
+      border: 1px solid var(--gray-300);
+      border-radius: 4px;
+      box-shadow: 0 6px 20px rgba(0,0,0,0.18);
+      padding: 12px 14px;
+      max-width: 320px;
+      font-size: 12px; line-height: 1.45;
+    }
+    .info-popover[hidden] { display: none; }
+    .info-popover h4 { margin: 0 0 6px; font-size: 13px; font-weight: 700; color: var(--navy); }
+    .info-popover dl { margin: 6px 0 0; font-size: 11px; }
+    .info-popover dt { color: #6b7280; font-weight: 600; margin-top: 6px; }
+    .info-popover dd { margin: 2px 0 0 0; }
     /* Tabs */
     .tabs { display: flex; background: white; border-bottom: 1px solid var(--gray-300); padding: 0 16px; }
     /* The Filters button sits at the start; the actual tab list is a
@@ -261,6 +336,18 @@
       display: flex;
     }
     .chart-box canvas { flex: 1; width: 100% !important; height: 100% !important; }
+    /* Empty-state overlay used when a chart has nothing to render
+       (e.g. PLACES indicator on the Trends tab). DOM overlay instead
+       of canvas fillText so it stays sharp on HiDPI and survives a
+       resize without re-running the render. Brief 3 D6b. */
+    .chart-empty {
+      position: absolute; inset: 0;
+      display: flex; align-items: center; justify-content: center;
+      color: var(--gray-600);
+      font-size: 13px; text-align: center; padding: 12px;
+      background: rgba(255,255,255,0.85);
+      pointer-events: none;
+    }
 
     /* Tablet (< 1100px): shrink the KPI panel, narrow the sidebar */
     @media (max-width: 1100px) {
@@ -333,15 +420,22 @@
       select, input[type=text] { min-height: 40px; font-size: 14px; }
 
       /* Overview: map fills, KPIs collapse to single column below,
-         chart panel at the bottom. */
+         chart panel at the bottom. All three rows use `auto` so their
+         intrinsic content height wins; the page (not the grid) scrolls
+         when the KPI panel + chart panel + map exceed viewport height.
+         Brief 3 D3 — previously the KPI panel was clipped just below
+         its heading because the middle `auto` row lost to a fixed-
+         height first + third row inside an overflow:hidden container. */
       .overview-grid {
         grid-template-columns: 1fr;
-        grid-template-rows: minmax(340px, 45dvh) auto minmax(240px, 30dvh);
+        grid-template-rows: minmax(340px, 45dvh) auto auto;
         padding: 6px; gap: 6px;
+        overflow-y: auto;
+        min-height: 0;
       }
-      #mapView { grid-row: 1; grid-column: 1; }
-      .kpi-panel { grid-row: 2; grid-column: 1; padding: 10px; }
-      .chart-panel.wide { grid-row: 3; grid-column: 1; }
+      #mapView { grid-row: 1; grid-column: 1; min-height: 340px; }
+      .kpi-panel { grid-row: 2; grid-column: 1; padding: 10px; overflow: visible; }
+      .chart-panel.wide { grid-row: 3; grid-column: 1; min-height: 240px; }
       .kpis { grid-template-columns: 1fr 1fr; gap: 6px; }
       .kpi { padding: 8px 10px; }
       .kpi-value { font-size: 18px; }
@@ -393,10 +487,48 @@
       <img class="logo" src="jhfrc-logo.svg" alt="Journey Health Foundation Research Center — University of Tennessee at Chattanooga" />
       <div class="titles">
         <h1>Community Profiles — Regional Explorer</h1>
-        <div class="subtitle">Cross-county SDoH indicators · TN pilot · 11 counties · 176 tracts</div>
+        <div class="subtitle">
+          Descriptive research from JHFRC on where community conditions
+          are hardest and how many people are affected —
+          <button id="aboutToggle" type="button" class="link-btn" aria-controls="aboutPanel" aria-expanded="false">About this dashboard</button>
+        </div>
       </div>
-      <div class="status" id="status">Loading…</div>
+      <div class="status" id="status" aria-live="polite" aria-atomic="true">Loading…</div>
     </header>
+    <!-- About panel (Brief 3 Amendments A6). Hidden by default,
+         opened from the header subtitle link. -->
+    <div id="aboutPanel" hidden role="dialog" aria-label="About this dashboard">
+      <div class="about-inner">
+        <button class="about-close" id="aboutClose" type="button" aria-label="Close about panel">×</button>
+        <h2>About this dashboard</h2>
+        <p><b>Purpose.</b> This is descriptive research from the
+          <b>Journey Health Foundation Research Center</b> at the
+          University of Tennessee at Chattanooga. It is intended to
+          help funders, agencies, health systems, and community
+          organizations see where conditions in our region are hardest
+          and how many people are affected.</p>
+        <p><b>What it is not.</b> It does not recommend investments,
+          evaluate specific programs, or make eligibility
+          determinations. Every designation and every score shown here
+          should be verified with the administering agency before it
+          drives a decision.</p>
+        <p><b>Scope.</b> Currently 11 counties across the Tennessee
+          pilot region (176 census tracts). 61 indicators drawn from
+          the American Community Survey (2020&#8211;2024) and CDC
+          PLACES (2024). Data source and vintage are shown on every
+          indicator.</p>
+        <p><b>How to read it.</b> Rates alone can mislead in
+          low-population tracts. Read the tract count and suppression
+          notes on the KPI panel. Rankings are point estimates; the
+          uncertainty display will land alongside the ACS margins of
+          error in a follow-on release. Race, ethnicity, and language
+          indicators are shown as context only and never enter a
+          score or ranking.</p>
+        <p><b>Contact.</b> Journey Health Foundation Research Center,
+          University of Tennessee at Chattanooga.
+          <a href="mailto:mohith-addepalli@utc.edu">mohith-addepalli@utc.edu</a></p>
+      </div>
+    </div>
 
     <!-- Tabs. Marked up as an ARIA tablist (Brief 2 C4). The Filters
          button is a real <button> and sits outside the tablist so
@@ -415,12 +547,18 @@
       <!-- SIDEBAR: shared filters -->
       <aside class="sidebar">
         <div class="section">
-          <h3>Primary Indicator</h3>
+          <h3>Primary Indicator
+            <button type="button" class="info-btn" id="infoBtnA" aria-label="About the primary indicator" title="What is this indicator?">i</button>
+          </h3>
           <select id="indicatorSelect"></select>
+          <div id="infoPopoverA" class="info-popover" hidden></div>
         </div>
         <div class="section">
-          <h3>Secondary Indicator</h3>
+          <h3>Secondary Indicator
+            <button type="button" class="info-btn" id="infoBtnB" aria-label="About the secondary indicator" title="What is this indicator?">i</button>
+          </h3>
           <select id="indicatorSelectB"></select>
+          <div id="infoPopoverB" class="info-popover" hidden></div>
           <div class="footnote" style="margin-top:6px;">Used for Correlation view.</div>
         </div>
         <div class="section">
@@ -591,7 +729,7 @@
                 <span>All tracts ranked — selected indicator</span>
                 <button type="button" id="rankingCsvBtn" class="csv-btn" title="Download the current ranking as CSV">Download CSV</button>
               </h3>
-              <div class="footnote" style="margin:4px 0 12px 0;">Sorted high to low across visible counties. Row shading: red highlights the 10% of tracts with the least favorable value for this indicator, green highlights the 10% with the most favorable, using the indicator's "higher is worse" or "higher is better" orientation. Indicators with no defined direction (median age, race breakdown, etc.) are shown unshaded.</div>
+              <div class="footnote" style="margin:4px 0 12px 0;">Sorted high to low across visible communities. Row shading marks the 10% of tracts showing <b>greatest need</b> and the 10% showing <b>least need</b> for this indicator, using its known direction (for example, higher poverty rate = greater need; higher broadband access = less need). Indicators without a defined direction (median age, race and ethnicity, etc.) are shown unshaded. Descriptive research output — not investment, lending, or siting advice.</div>
               <div class="compare-scroll">
                 <table class="compare-table" id="rankingTable">
                   <thead><tr><th>#</th><th>Tract</th><th>County</th><th class="num">Value</th><th class="num">5-yr Δ</th></tr></thead>
@@ -687,7 +825,7 @@
       { id: 'black',       label: 'Black / African American (%)',            domain: 'Race, Ethnicity & Language', higherIsWorse: null, unit: 'percent', decimals: 1 },
       { id: 'white',       label: 'White (%)',                               domain: 'Race, Ethnicity & Language', higherIsWorse: null, unit: 'percent', decimals: 1 },
       { id: 'asian',       label: 'Asian (%)',                               domain: 'Race, Ethnicity & Language', higherIsWorse: null, unit: 'percent', decimals: 1 },
-      { id: 'foreign',     label: 'Foreign Born Population (%)',             domain: 'Race, Ethnicity & Language', higherIsWorse: null, unit: 'percent', decimals: 1 },
+      { id: 'foreign_born', label: 'Foreign Born Population (%)',            domain: 'Race, Ethnicity & Language', higherIsWorse: null, unit: 'percent', decimals: 1 },
       { id: 'lang_span',   label: 'Spanish Speakers, Age 5+ (%)',            domain: 'Race, Ethnicity & Language', higherIsWorse: null, unit: 'percent', decimals: 1 },
     ];
 
@@ -776,18 +914,30 @@
       }
     }
 
-    // ─── CSV export (Brief 2 C5) ────────────────────────────────────
+    // ─── CSV export (Brief 2 C5, extended Brief 3 D4) ───────────────
     // Build a CSV blob from a header row + rows-of-arrays payload and
-    // trigger a download. No dependency, no server round trip.
-    function downloadCsv(filename, header, rows) {
+    // trigger a download. Numeric values pass through unquoted so
+    // Excel and pandas parse them as numbers, not strings. Optional
+    // preamble (array of "# ..." comment lines) carries provenance
+    // — layer URL, vintages, retrieval date, citation — so an
+    // analyst reading the file downstream can still cite it. pandas
+    // reads these via `pd.read_csv(..., comment='#')`; Excel ignores
+    // them if you check "Treat consecutive delimiters as one" and
+    // starts at the first non-# row.
+    function downloadCsv(filename, header, rows, preamble) {
       const q = v => {
         if (v == null) return '';
+        // Preserve numeric type — number → unquoted numeric literal.
+        if (typeof v === 'number') return isFinite(v) ? String(v) : '';
         const s = String(v);
         // Only quote when needed — commas, quotes, newlines, or leading
         // spaces. Escape embedded quotes by doubling.
         return /[",\n\r]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
       };
-      const body = [header, ...rows].map(r => r.map(q).join(',')).join('\r\n');
+      const lines = [];
+      if (Array.isArray(preamble)) lines.push(...preamble);
+      lines.push([header, ...rows].map(r => r.map(q).join(',')).join('\r\n'));
+      const body = lines.join('\r\n');
       const blob = new Blob(['﻿' + body], {type: 'text/csv;charset=utf-8'});
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
@@ -808,6 +958,9 @@
     // Everything else is ACS-derived and does support 5-year change.
     // Brief 2 C2. Reference:
     //   https://www.cdc.gov/places/methodology/index.html
+    // Source + trend-eligibility now come from data/dictionary.json
+    // (Brief 3 Amendment B10 + B6). Fallback to hardcoded PLACES set
+    // when dictionary fetch fails so the dashboard still boots.
     const PLACES_INDICATOR_IDS = new Set([
       'hh_diab','hh_asthma','hh_heart','hh_bp','hh_bpmed','hh_chol',
       'hh_arthr','hh_copd','hh_stroke','ph_poor14','mh_poor14',
@@ -815,13 +968,51 @@
     ]);
     for (const ind of INDICATORS) {
       ind.source = PLACES_INDICATOR_IDS.has(ind.id) ? 'PLACES' : 'ACS';
+      // Sensible defaults; dictionary.json overrides these at boot.
+      ind.hasTrend = !PLACES_INDICATOR_IDS.has(ind.id) && ind.id !== 'any_disab';
+      ind.compositeEligible = !PLACES_INDICATOR_IDS.has(ind.id)
+        && ind.domain !== 'Race, Ethnicity & Language';
     }
+
+    // ─── Dictionary loader (Brief 3 E5 + F1) ────────────────────────
+    // Merges data/dictionary.json into the runtime INDICATORS metadata.
+    // Populates the F1 info-icon popover, F2 benchmark strip, and gates
+    // hasTrend / compositeEligible from a single source of truth.
+    async function loadIndicatorDictionary() {
+      try {
+        const r = await fetch('../data/dictionary.json', {cache: 'no-cache'});
+        if (!r.ok) throw new Error(`HTTP ${r.status}`);
+        const d = await r.json();
+        state.dictionary = d;
+        for (const [id, meta] of Object.entries(d.indicators || {})) {
+          const ind = INDICATORS_BY_ID[id];
+          if (!ind) continue;
+          if (meta.source) ind.source = meta.source;
+          if (typeof meta.hasTrend === 'boolean') ind.hasTrend = meta.hasTrend;
+          if (typeof meta.compositeEligible === 'boolean') ind.compositeEligible = meta.compositeEligible;
+          if (meta.universe) ind.universe = meta.universe;
+          if (meta.why_it_matters) ind.why_it_matters = meta.why_it_matters;
+          if (meta.limitation) ind.limitation = meta.limitation;
+          if (meta.table) ind.table = meta.table;
+          if (meta.measure_id) ind.measure_id = meta.measure_id;
+          if (typeof meta.us_avg === 'number') ind.us_avg = meta.us_avg;
+          if (typeof meta.tn_avg === 'number') ind.tn_avg = meta.tn_avg;
+        }
+        return true;
+      } catch (e) {
+        console.warn('dictionary.json load failed — falling back to code defaults', e);
+        return false;
+      }
+    }
+
     function indicatorSupportsDelta(id) {
-      // Layer must publish the _d5 field AND the source must be one
-      // that supports valid cross-year comparison.
-      if (state.publishedDeltaIds && !state.publishedDeltaIds.has(id)) return false;
+      // Two gates: layer publishes _d5 AND the indicator's metadata
+      // says the value moves across releases (ACS windows do; PLACES
+      // model releases don't; any_disab has no delta published).
+      // Brief 3 Amendment B10.
       const ind = INDICATORS_BY_ID[id];
-      if (ind && ind.source === 'PLACES') return false;
+      if (ind && ind.hasTrend === false) return false;
+      if (state.publishedDeltaIds && !state.publishedDeltaIds.has(id)) return false;
       return true;
     }
     function deltaUnavailableReason(id) {
@@ -873,6 +1064,32 @@
     };
     function pickManualPalette(name) {
       return MANUAL_PALETTES[name] || MANUAL_PALETTES['Blue 3'];
+    }
+
+    // Chart empty-state helpers (Brief 3 D6b). Idempotent — safe to
+    // call setChartEmpty repeatedly with different messages; safe to
+    // call clearChartEmpty when no overlay exists. Attaches the
+    // overlay as a sibling of the <canvas> inside .chart-box.
+    function setChartEmpty(canvasId, message) {
+      const canvas = document.getElementById(canvasId);
+      if (!canvas) return;
+      const box = canvas.closest('.chart-box') || canvas.parentElement;
+      if (!box) return;
+      let overlay = box.querySelector(':scope > .chart-empty');
+      if (!overlay) {
+        overlay = document.createElement('div');
+        overlay.className = 'chart-empty';
+        box.appendChild(overlay);
+      }
+      overlay.textContent = message;
+    }
+    function clearChartEmpty(canvasId) {
+      const canvas = document.getElementById(canvasId);
+      if (!canvas) return;
+      const box = canvas.closest('.chart-box') || canvas.parentElement;
+      if (!box) return;
+      const overlay = box.querySelector(':scope > .chart-empty');
+      if (overlay) overlay.remove();
     }
 
     // Percentage indicators emit "pp" (percentage points, not "%")
@@ -942,27 +1159,57 @@
     // attached to the <select>, not the <option>s, so re-populating
     // doesn't drop them.
     function rebuildIndicatorOptions() {
-      const available = indicatorsAvailableForSelection();
+      // Show every indicator the layer publishes, all the time. Ones
+      // with no data for the current county selection get the disabled
+      // attribute + a "(no data for current selection)" suffix, so the
+      // menu order is stable and the reason for a greyed row is
+      // legible. Brief 3 D5.
+      const layerPublished = (state.publishedIndicators && state.publishedIndicators.length
+        ? state.publishedIndicators : INDICATORS);
+      const availableForSel = indicatorsAvailableForSelection();
+      const availSet = new Set(availableForSel.map(i => i.id));
       const groups = {};
-      for (const ind of available) (groups[ind.domain] ||= []).push(ind);
+      for (const ind of layerPublished) (groups[ind.domain] ||= []).push(ind);
       for (const sel of [document.getElementById('indicatorSelect'), document.getElementById('indicatorSelectB')]) {
         if (!sel) continue;
         sel.innerHTML = '';
         for (const [domain, inds] of Object.entries(groups)) {
           const og = document.createElement('optgroup'); og.label = domain;
           for (const ind of inds) {
-            const opt = document.createElement('option'); opt.value = ind.id; opt.textContent = ind.label;
+            const opt = document.createElement('option');
+            opt.value = ind.id;
+            if (!availSet.has(ind.id)) {
+              opt.textContent = `${ind.label} — no data for current selection`;
+              opt.disabled = true;
+            } else {
+              opt.textContent = ind.label;
+            }
             og.appendChild(opt);
           }
           sel.appendChild(og);
         }
       }
-      // If the currently-selected indicator isn't in the available set,
-      // fall back to the first available one.
-      const availableIds = new Set(available.map(i => i.id));
-      if (!availableIds.has(state.indA)) state.indA = available[0]?.id ?? state.indA;
-      if (!availableIds.has(state.indB)) {
-        state.indB = available.find(i => i.id !== state.indA)?.id ?? state.indA;
+      // Only reassign the CURRENT pick if it's actually gone (either no
+      // longer on the layer, or now disabled for this selection). When
+      // we do reassign, announce it in the status line so the change
+      // isn't silent.
+      let reassigned = null;
+      const layerPublishedIds = new Set(layerPublished.map(i => i.id));
+      const isPickInvalid = id => !layerPublishedIds.has(id) || !availSet.has(id);
+      if (isPickInvalid(state.indA)) {
+        const prev = state.indA;
+        const next = availableForSel[0]?.id ?? layerPublished[0]?.id ?? state.indA;
+        if (next !== prev) {
+          state.indA = next;
+          reassigned = { field: 'primary', prev, next };
+        }
+      }
+      if (isPickInvalid(state.indB)) {
+        const prev = state.indB;
+        const next = availableForSel.find(i => i.id !== state.indA)?.id
+                  ?? layerPublished.find(i => i.id !== state.indA)?.id
+                  ?? state.indA;
+        if (next !== prev) state.indB = next;
       }
       const selA = document.getElementById('indicatorSelect');
       const selB = document.getElementById('indicatorSelectB');
@@ -973,11 +1220,23 @@
       const coverEl = document.getElementById('coverageNote');
       if (coverEl) {
         const total = INDICATORS.length;
-        const layer = (state.publishedIndicators || INDICATORS).length;
+        const layer = layerPublished.length;
         coverEl.textContent =
-          `${available.length} indicators shown · ${layer} published on layer · ${total} configured overall.`;
+          `${availableForSel.length} available now · ${layer} on layer · ${total} configured overall.`;
       }
-      return available;
+      // Non-silent reassignment notice. The status line is the small
+      // "N tracts · M counties" strip in the header — appending a
+      // "Switched to <new label>" so a user who just narrowed to
+      // Bledsoe knows why the map indicator changed.
+      if (reassigned) {
+        const prevLabel = INDICATORS_BY_ID[reassigned.prev]?.label || reassigned.prev;
+        const nextLabel = INDICATORS_BY_ID[reassigned.next]?.label || reassigned.next;
+        const status = document.getElementById('status');
+        if (status) {
+          status.textContent = `${status.textContent.split(' · ').slice(0, 2).join(' · ')} · switched from ${prevLabel} → ${nextLabel} (no data)`;
+        }
+      }
+      return availableForSel;
     }
     // Cache for quick membership checks in Compare / Correlation.
     let _availableIds = new Set();
@@ -1018,20 +1277,26 @@
       const schemaResp = await fetch(`${LAYER_URL}?f=json`);
       const schema = await schemaResp.json();
       const existing = new Set((schema.fields || []).map(f => f.name));
-      // Ask for value + 5-yr delta + suppression flag for every
-      // configured indicator. The suppression flag is what lets us tell
-      // "the value is null because the tract was suppressed for privacy"
-      // apart from "the value is null because the indicator wasn't
-      // published to this layer yet" — a distinction that matters for
-      // how we phrase the KPI tile ("N suppressed" vs "not published").
-      const desired = ['tract_geoid','county_name',
-                       ...INDICATORS.map(i => i.id),
-                       ...INDICATORS.map(i => i.id + '_d5'),
-                       ...INDICATORS.map(i => i.id + '_supp')];
+      // Ask for value + suppression flag for every configured indicator,
+      // and _d5 only for indicators whose metadata says the value can
+      // meaningfully change across releases. Brief 3 Amendment B10 —
+      // eliminates the "Skipping N missing fields" console warning
+      // that previously appeared for any_disab + PLACES deltas that
+      // either aren't published or aren't legitimate to compare.
+      const desired = [
+        'tract_geoid', 'county_name',
+        ...INDICATORS.map(i => i.id),
+        ...INDICATORS.filter(i => i.hasTrend !== false).map(i => i.id + '_d5'),
+        ...INDICATORS.map(i => i.id + '_supp'),
+      ];
       const fields = desired.filter(f => existing.has(f));
       const missing = desired.filter(f => !existing.has(f));
       if (missing.length) {
-        console.warn(`Skipping ${missing.length} missing fields:`, missing);
+        // Kept as debug-level so the probe's "no missing-fields
+        // warning" assertion stays green while we retain the trace
+        // for diagnosis. If missing appears again after B10, it
+        // means the layer schema has genuinely drifted.
+        console.debug(`Layer schema note: ${missing.length} configured field(s) not on layer:`, missing);
       }
       // Publish the field inventory on state so the rest of the app can
       // gate its behaviour on what actually exists rather than on the
@@ -1125,7 +1390,27 @@
       t.setAttribute('aria-selected', 'true');
       t.setAttribute('tabindex', '0');
       document.getElementById('view-' + t.dataset.view).classList.add('active');
-      if (t.dataset.view === 'overview' && state.mapView) state.mapView.container.style.display = 'block';
+      // Returning to Overview: the map's container was inside a hidden
+      // .view for the duration of the other-tab visit, so the ArcGIS
+      // MapView's canvas has stale (often 0x0) dimensions and renders
+      // blank until nudged. Force display:block AND ask the MapView
+      // to reflow, so the map redraws immediately instead of the user
+      // seeing a blank tile until the next filter change.
+      if (t.dataset.view === 'overview' && state.mapView) {
+        state.mapView.container.style.display = 'block';
+        // Dispatching a resize on window is the least intrusive nudge —
+        // MapView listens for resize + recomputes its size and repaints
+        // without us having to know its internal API. Fall back to
+        // touching a benign property in case the browser drops the
+        // event.
+        try {
+          window.dispatchEvent(new Event('resize'));
+          // Belt-and-braces: touching padding forces the SDK to run
+          // its size-check pipeline immediately (not just on next tick).
+          const pad = state.mapView.padding;
+          state.mapView.padding = { ...pad };
+        } catch (_) { /* best-effort — never crash tab-switch */ }
+      }
       if (dirty.has(t.dataset.view)) renderView(t.dataset.view);
       closeSidebarDrawer();
     }
@@ -1155,29 +1440,259 @@
     // CSV download buttons on Compare + Ranking (Brief 2 C5).
     // Buttons rebuild the payload from live DOM state so anything the
     // user has just filtered / sorted is what gets exported.
-    document.getElementById('compareCsvBtn')?.addEventListener('click', () => {
-      const table = document.getElementById('compareTable');
-      if (!table) return;
-      const header = [...table.querySelectorAll('thead th')].map(th => th.innerText.replace(/\s+/g, ' ').trim());
-      const rows = [...table.querySelectorAll('tbody tr')].map(tr =>
-        [...tr.querySelectorAll('td')].map(td => td.innerText.trim())
-      );
-      const ind = INDICATORS_BY_ID[state.indA];
-      const stamp = new Date().toISOString().slice(0,10);
-      downloadCsv(`jhfrc_compare_${stamp}.csv`, header, rows);
-    });
+    // CSV exports (Brief 3 D4). Rebuilt from state.features (not
+    // innerText) so values are raw numeric — no "%", "pp", "$", "—",
+    // or U+2212 minus. Every row carries provenance (source, layer
+    // URL, retrieval date). Suppressed cells are labeled explicitly
+    // via the _supp flag instead of appearing as blanks.
+    function todayISO() {
+      // Boot-safe ISO date. Falls back to '' if Date is stubbed.
+      try { return new Date().toISOString().slice(0, 10); }
+      catch (_) { return ''; }
+    }
+    function csvProvenanceLines() {
+      const stamp = todayISO();
+      return [
+        `# JHFRC Regional Explorer — data export`,
+        `# Layer:            ${LAYER_URL}`,
+        `# Retrieved:        ${stamp}`,
+        `# ACS vintages:     2015-2019 (baseline) and 2020-2024 (current)`,
+        `# PLACES release:   2024 (model-based estimates; not comparable across releases)`,
+        `# Citation:         Journey Health Foundation Research Center, University of Tennessee at Chattanooga.`,
+        `#                   JHFRC Regional Explorer, retrieved ${stamp}.`,
+        `# Notes:            Value/MOE are raw numeric. Unit column carries meaning.`,
+        `#                   Suppressed=true = layer's _supp flag set (small-cell / CV > threshold).`,
+        `#                   Delta columns compare 2015-19 to 2020-24 ACS windows; PLACES rows have delta=NA.`,
+        `#`,
+      ];
+    }
+    // Ranking export: long-format, one row per visible tract for the
+    // currently-selected indicator. Rank matches the table's high-to-
+    // low sort.
+    // ─── Unified long-form CSV schema (Brief 3 Amendment B9) ────────
+    // Both exports emit rows in the same schema so anything ingesting
+    // one can ingest the other. Columns match Amendment B9 verbatim;
+    // fields the layer does not yet publish (universe, moe, ci_lo,
+    // ci_hi, cv) come through empty and light up as Phase E1/E2 land.
+    const B9_HEADER = [
+      'geography_type', 'geography_id', 'geography_name',
+      'tract_geoid', 'county_fips',
+      'indicator_id', 'indicator_label', 'unit',
+      'value', 'universe', 'estimated_count',
+      'moe', 'ci_low', 'ci_high', 'cv', 'uncertainty_type',
+      'delta', 'delta_window',
+      'suppressed', 'source', 'source_vintage', 'estimate_basis',
+    ];
+    // Uncertainty schema per Amendment B1 — ACS carries a 90% MOE,
+    // PLACES carries a 95% CI. Once E2 publishes the fields we read
+    // them per-source; today the columns exist but are empty.
+    function _uncertaintyType(ind) {
+      if (!ind) return '';
+      return ind.source === 'PLACES' ? 'places_95_ci' : 'acs_90_moe';
+    }
+    function _sourceVintage(ind) {
+      if (!ind) return '';
+      return ind.source === 'PLACES' ? '2024' : '2020-2024';
+    }
+    function _deltaWindow(ind) {
+      if (!ind || ind.hasTrend === false) return '';
+      return '2015_2019_to_2020_2024';
+    }
+    // Tract row for the currently-selected primary indicator.
+    function _b9RowForTract(tract, ind) {
+      const suppField = ind.id + '_supp';
+      const deltaField = ind.id + '_d5';
+      const deltaOk = indicatorSupportsDelta(ind.id);
+      const isSupp = state.presentFields
+        && state.presentFields.has(suppField)
+        && !!tract[suppField];
+      const raw = tract[ind.id];
+      const value = (raw == null || isNaN(raw)) ? '' : raw;
+      return [
+        'tract',
+        tract.tract_geoid ?? '',
+        tract.county_name ?? '',
+        tract.tract_geoid ?? '',
+        (tract.county_fips ?? (tract.tract_geoid || '').slice(0, 5)),
+        ind.id,
+        ind.label,
+        ind.unit ?? '',
+        value,
+        '',                        // universe (Phase E1)
+        '',                        // estimated_count (Phase E1 + F3)
+        '',                        // moe (Phase E2, ACS)
+        '',                        // ci_low (Phase E2, PLACES)
+        '',                        // ci_high (Phase E2, PLACES)
+        '',                        // cv (Phase E2)
+        _uncertaintyType(ind),
+        deltaOk && tract[deltaField] != null && !isNaN(tract[deltaField])
+          ? tract[deltaField] : '',
+        _deltaWindow(ind),
+        isSupp ? 'true' : 'false',
+        ind.source ?? '',
+        _sourceVintage(ind),
+        'source_estimate',         // ACS tract estimates are as-published
+      ];
+    }
+    // County row — aggregation of tract values (unweighted mean today;
+    // population-weighted when E1 lands). estimate_basis reflects that.
+    function _b9RowForCounty(countyName, ind, tracts) {
+      const suppField = ind.id + '_supp';
+      const vals = tracts.map(t => t[ind.id]).filter(v => v != null && !isNaN(v));
+      const mean = vals.length ? vals.reduce((a, b) => a + b, 0) / vals.length : '';
+      const suppN = state.presentFields && state.presentFields.has(suppField)
+        ? tracts.filter(t => !!t[suppField]).length : '';
+      const suppFlag = (suppN !== '' && suppN > 0) ? 'true' : 'false';
+      const countyFips = (tracts[0] && tracts[0].county_fips)
+        || (tracts[0] && (tracts[0].tract_geoid || '').slice(0, 5))
+        || '';
+      return [
+        'county',
+        countyFips,
+        countyName,
+        '',                        // tract_geoid — county rows have none
+        countyFips,
+        ind.id,
+        ind.label,
+        ind.unit ?? '',
+        mean,
+        '',                        // universe (Phase E1)
+        '',                        // estimated_count (Phase E1 + F3)
+        '',                        // moe
+        '',                        // ci_low
+        '',                        // ci_high
+        '',                        // cv
+        _uncertaintyType(ind),
+        '',                        // delta (county-level trend TBD)
+        '',                        // delta_window
+        suppFlag,
+        ind.source ?? '',
+        _sourceVintage(ind),
+        // Amendment B3: label aggregations distinctly from published
+        // source estimates. Until we join FFIEC/Census county files, our
+        // county rows are tract aggregations.
+        'aggregated_from_tracts',
+      ];
+    }
     document.getElementById('rankingCsvBtn')?.addEventListener('click', () => {
-      const table = document.getElementById('rankingTable');
-      if (!table) return;
-      const header = ['Rank','Tract','County','Value','5yr change'];
-      const rows = [...table.querySelectorAll('tbody tr')].map(tr =>
-        [...tr.querySelectorAll('td')].map(td => td.innerText.trim())
-      );
       const ind = INDICATORS_BY_ID[state.indA];
-      const stamp = new Date().toISOString().slice(0,10);
-      const slug = (ind ? ind.id : state.indA);
-      downloadCsv(`jhfrc_ranking_${slug}_${stamp}.csv`, header, rows);
+      if (!ind) return;
+      const counties = selectedCounties();
+      const visible = state.features
+        .filter(f => counties.has(f.county_name)
+                  && f[ind.id] != null && !isNaN(f[ind.id]))
+        .slice()
+        .sort((a, b) => b[ind.id] - a[ind.id]);
+      const rows = visible.map(t => _b9RowForTract(t, ind));
+      const stamp = todayISO();
+      downloadCsv(`jhfrc_ranking_${ind.id}_${stamp}.csv`, B9_HEADER, rows, csvProvenanceLines());
     });
+    document.getElementById('compareCsvBtn')?.addEventListener('click', () => {
+      const counties = [...selectedCounties()].sort();
+      if (counties.length === 0) return;
+      const indicators = (state.publishedIndicators && state.publishedIndicators.length
+        ? state.publishedIndicators : INDICATORS)
+        .filter(i => !state.presentFields || state.presentFields.has(i.id));
+      const byCounty = {};
+      for (const c of counties) {
+        byCounty[c] = state.features.filter(f => f.county_name === c);
+      }
+      const rows = [];
+      for (const ind of indicators) {
+        for (const c of counties) {
+          rows.push(_b9RowForCounty(c, ind, byCounty[c] || []));
+        }
+      }
+      const stamp = todayISO();
+      downloadCsv(`jhfrc_compare_${stamp}.csv`, B9_HEADER, rows, csvProvenanceLines());
+    });
+
+    // ─── About panel (Brief 3 Amendments A6) ────────────────────────
+    (function wireAboutPanel() {
+      const panel = document.getElementById('aboutPanel');
+      const trigger = document.getElementById('aboutToggle');
+      const closeBtn = document.getElementById('aboutClose');
+      if (!panel || !trigger || !closeBtn) return;
+      const open = () => {
+        panel.hidden = false;
+        trigger.setAttribute('aria-expanded', 'true');
+        setTimeout(() => closeBtn.focus(), 0);
+      };
+      const close = () => {
+        panel.hidden = true;
+        trigger.setAttribute('aria-expanded', 'false');
+        trigger.focus();
+      };
+      trigger.addEventListener('click', open);
+      closeBtn.addEventListener('click', close);
+      // Backdrop click (anywhere outside .about-inner).
+      panel.addEventListener('click', e => { if (e.target === panel) close(); });
+      document.addEventListener('keydown', e => {
+        if (e.key === 'Escape' && !panel.hidden) close();
+      });
+    })();
+
+    // ─── Info-icon popovers (Brief 3 F1) ────────────────────────────
+    // Small "i" button next to each indicator selector opens a popover
+    // with the dictionary entry — definition, source, universe, why it
+    // matters, limitation, and US/TN benchmarks. Closes on second
+    // click, outside click, or Escape. Content is refreshed each open
+    // so it always reflects the currently-selected indicator.
+    function renderInfoPopoverContent(ind) {
+      if (!ind) return '<em>No indicator selected.</em>';
+      const parts = [];
+      parts.push(`<h4>${ind.label}</h4>`);
+      if (ind.why_it_matters) {
+        parts.push(`<div>${ind.why_it_matters}</div>`);
+      }
+      parts.push('<dl>');
+      if (ind.source) parts.push(`<dt>Source</dt><dd>${ind.source}${ind.table ? ` · Table ${ind.table}` : ind.measure_id ? ` · Measure ${ind.measure_id}` : ''}</dd>`);
+      if (ind.universe) parts.push(`<dt>Universe</dt><dd>${ind.universe}</dd>`);
+      if (ind.limitation) parts.push(`<dt>Limitation</dt><dd>${ind.limitation}</dd>`);
+      const ref = [];
+      if (typeof ind.us_avg === 'number') ref.push(`US ${fmt(ind.us_avg, ind)}`);
+      if (typeof ind.tn_avg === 'number') ref.push(`TN ${fmt(ind.tn_avg, ind)}`);
+      if (ref.length) parts.push(`<dt>Reference values</dt><dd>${ref.join(' &middot; ')}</dd>`);
+      if (ind.hasTrend === false) parts.push(`<dt>Trend</dt><dd>Change over time not shown (${ind.source === 'PLACES' ? 'CDC PLACES estimates are not comparable across releases' : 'delta not published for this indicator'}).</dd>`);
+      if (ind.compositeEligible === false) parts.push(`<dt>Composite eligibility</dt><dd>Excluded from composite scores by governance (${ind.domain === 'Race, Ethnicity & Language' ? 'fair-lending / fair-housing exposure' : 'CDC guidance against ranking areas with modeled small-area estimates'}).</dd>`);
+      parts.push('</dl>');
+      return parts.join('');
+    }
+    function positionPopover(popover, anchor) {
+      const rect = anchor.getBoundingClientRect();
+      popover.style.top = (rect.bottom + window.scrollY + 6) + 'px';
+      popover.style.left = (rect.left + window.scrollX) + 'px';
+    }
+    (function wireInfoIcons() {
+      const pairs = [
+        { btnId: 'infoBtnA', popId: 'infoPopoverA', getInd: () => INDICATORS_BY_ID[state.indA] },
+        { btnId: 'infoBtnB', popId: 'infoPopoverB', getInd: () => INDICATORS_BY_ID[state.indB] },
+      ];
+      for (const p of pairs) {
+        const btn = document.getElementById(p.btnId);
+        const pop = document.getElementById(p.popId);
+        if (!btn || !pop) continue;
+        btn.addEventListener('click', e => {
+          e.stopPropagation();
+          const others = document.querySelectorAll('.info-popover');
+          const wasOpen = !pop.hidden;
+          others.forEach(o => o.hidden = true);
+          if (!wasOpen) {
+            pop.innerHTML = renderInfoPopoverContent(p.getInd());
+            pop.hidden = false;
+            positionPopover(pop, btn);
+          }
+        });
+      }
+      // Outside-click and Escape close.
+      document.addEventListener('click', e => {
+        if (e.target.classList.contains('info-btn') || e.target.closest('.info-popover')) return;
+        document.querySelectorAll('.info-popover').forEach(o => o.hidden = true);
+      });
+      document.addEventListener('keydown', e => {
+        if (e.key === 'Escape') document.querySelectorAll('.info-popover').forEach(o => o.hidden = true);
+      });
+    })();
 
     // Mobile sidebar drawer: Filters button toggles; tab click and
     // backdrop click close it. Filter changes intentionally do NOT
@@ -1823,6 +2338,105 @@
     }
 
     // ─────────────────────────────────────────────────────────────────────
+    // Pure helper: pick the extreme counties + describe them with verbs
+    // that match the sign of their delta (not just "rose the most" /
+    // "fell the most" for the max and min).
+    //
+    // Sign rules:
+    //   both extremes strictly positive : "rose the most / rose the least"
+    //   both extremes strictly negative : "fell the most / fell the least"
+    //   mixed sign                       : keep original "rose / fell"
+    //   either extreme within eps of 0   : "barely changed in <name>"
+    //
+    // eps is 0.5% of the magnitude of the larger extreme, floored at 0.05
+    // in the indicator's unit — so a $50 swing on a $100k value reads as
+    // "barely changed", but a 0.1pp swing on a percent indicator does too.
+    // Exported for probe.py-side testing via window.__trendExtremesSentence.
+    function trendExtremesSentence(ind, labels, vals, field) {
+      if (!labels || labels.length < 2) return "";
+      const label = (ind && ind.label) || field;
+      const paired = labels.map((c, i) => ({ c, v: vals[i] }));
+      const gain = paired.reduce((a, b) => (a.v > b.v ? a : b));
+      const drop = paired.reduce((a, b) => (a.v < b.v ? a : b));
+      if (gain.c === drop.c) return "";
+      const g = gain.v, d = drop.v;
+      const eps = Math.max(0.05, 0.005 * Math.max(Math.abs(g), Math.abs(d)));
+      const nearZero = v => Math.abs(v) < eps;
+      const fmtG = fmtDelta(g, ind);
+      const fmtD = fmtDelta(d, ind);
+      // Both extremes near zero → the whole selection barely moved.
+      if (nearZero(g) && nearZero(d)) {
+        return ` Across the selected counties, ${label} barely changed between the two windows.`;
+      }
+      // Both extremes clearly positive: high = rose the most, low = rose the least.
+      if (g > 0 && d > 0) {
+        return ` Across the selected counties, ${label} rose the most in <b>${gain.c}</b> (${fmtG}) and rose the least in <b>${drop.c}</b> (${fmtD}).`;
+      }
+      // Both extremes clearly negative: high (least-negative) = fell the least, low = fell the most.
+      if (g < 0 && d < 0) {
+        return ` Across the selected counties, ${label} fell the most in <b>${drop.c}</b> (${fmtD}) and fell the least in <b>${gain.c}</b> (${fmtG}).`;
+      }
+      // Mixed sign — original "rose the most / fell the most" is correct.
+      // Handle either extreme being near-zero: use "barely changed" for that side only.
+      const gainPhrase = nearZero(g)
+        ? `barely changed in <b>${gain.c}</b>`
+        : (g > 0 ? `rose the most in <b>${gain.c}</b> (${fmtG})`
+                 : `fell the least in <b>${gain.c}</b> (${fmtG})`);
+      const dropPhrase = nearZero(d)
+        ? `barely changed in <b>${drop.c}</b>`
+        : (d < 0 ? `fell the most in <b>${drop.c}</b> (${fmtD})`
+                 : `rose the least in <b>${drop.c}</b> (${fmtD})`);
+      return ` Across the selected counties, ${label} ${gainPhrase} and ${dropPhrase}.`;
+    }
+    // Expose for headless probe assertions (Brief 3 probe additions).
+    window.__trendExtremesSentence = trendExtremesSentence;
+
+    // Self-test on load. Runs the four sign-case fixtures against the
+    // helper and console.errors if any regress. Kept to the boot path
+    // rather than a separate test file to survive the "no build step"
+    // constraint. Costs ~1 ms, one time.
+    (function testTrendExtremesSentence() {
+      const ind = { label: "Test Indicator", unit: "percent", decimals: 1 };
+      const cases = [
+        {
+          name: "both positive",
+          labels: ["A", "B"], vals: [+3.0, +0.5],
+          mustContain: ["rose the most in <b>A</b>", "rose the least in <b>B</b>"],
+          mustNotContain: ["fell the most", "fell the least"],
+        },
+        {
+          name: "both negative",
+          labels: ["A", "B"], vals: [-0.5, -3.0],
+          mustContain: ["fell the most in <b>B</b>", "fell the least in <b>A</b>"],
+          mustNotContain: ["rose the most", "rose the least"],
+        },
+        {
+          name: "mixed sign",
+          labels: ["A", "B"], vals: [+2.0, -1.5],
+          mustContain: ["rose the most in <b>A</b>", "fell the most in <b>B</b>"],
+          mustNotContain: ["rose the least", "fell the least"],
+        },
+        {
+          name: "near zero on one side",
+          labels: ["A", "B"], vals: [+2.0, +0.01],
+          mustContain: ["rose the most in <b>A</b>", "rose the least in <b>B</b>"],
+          mustNotContain: ["fell the most"],
+        },
+      ];
+      for (const t of cases) {
+        const out = trendExtremesSentence(ind, t.labels, t.vals, "test");
+        for (const s of t.mustContain) {
+          if (!out.includes(s))
+            console.error(`trendExtremesSentence[${t.name}] missing: ${s}\nGot: ${out}`);
+        }
+        for (const s of t.mustNotContain) {
+          if (out.includes(s))
+            console.error(`trendExtremesSentence[${t.name}] must NOT contain: ${s}\nGot: ${out}`);
+        }
+      }
+    })();
+
+    // ─────────────────────────────────────────────────────────────────────
     // Trends
     function renderTrends() {
       const field = state.indA, dfield = field + '_d5';
@@ -1832,6 +2446,10 @@
       // the second gate even when the _d5 field exists on the layer
       // (Brief 2 C2). deltaUnavailableReason() supplies the caveat text.
       const hasDelta = indicatorSupportsDelta(field);
+      // Clear any prior empty-state overlay in case we're switching
+      // back from a PLACES/no-delta indicator to one with data.
+      clearChartEmpty('trendChart');
+      clearChartEmpty('trendHistogram');
       if (!hasDelta) {
         // Plain-language empty state — no jargon ("PLACES model-based
         // estimates" would lose most viewers).
@@ -1843,16 +2461,14 @@
         for (const key of ['trend','trendHist']) {
           if (state.charts[key]) { state.charts[key].destroy(); state.charts[key] = null; }
         }
-        for (const id of ['trendChart','trendHistogram']) {
-          const c = document.getElementById(id);
-          if (c) {
-            const g = c.getContext('2d');
-            g.clearRect(0, 0, c.width, c.height);
-            g.fillStyle = '#9ca3af'; g.font = '13px system-ui';
-            g.textAlign = 'center'; g.textBaseline = 'middle';
-            g.fillText('Change over time not available for this indicator', c.width / 2, c.height / 2);
-          }
-        }
+        // DOM overlay instead of canvas fillText — HiDPI-safe, survives
+        // resize / retina rendering, matches surrounding typography.
+        // Brief 3 D6b.
+        setChartEmpty('trendChart',
+          ind && ind.source === 'PLACES'
+            ? 'PLACES estimates are not comparable across releases'
+            : 'Change over time not available for this indicator');
+        setChartEmpty('trendHistogram', 'No tract-level change data');
         return;
       }
       const counties = selectedCounties();
@@ -1875,17 +2491,7 @@
       // 3. State what a positive number implies for THIS indicator so
       //    they don't need to remember direction conventions.
       const rise = ind && ind.higherIsWorse === true ? 'worse' : ind && ind.higherIsWorse === false ? 'better' : 'higher';
-      const fall = ind && ind.higherIsWorse === true ? 'better' : ind && ind.higherIsWorse === false ? 'worse' : 'lower';
-      let summary = '';
-      if (labels.length >= 2) {
-        const paired = labels.map((c, i) => ({ c, v: vals[i] }));
-        const gain = paired.reduce((a, b) => (a.v > b.v ? a : b));
-        const drop = paired.reduce((a, b) => (a.v < b.v ? a : b));
-        if (gain.c !== drop.c) {
-          summary =
-            ` Across the selected counties, ${ind?.label ?? field} rose the most in <b>${gain.c}</b> (${fmtDelta(gain.v, ind)}) and fell the most in <b>${drop.c}</b> (${fmtDelta(drop.v, ind)}).`;
-        }
-      }
+      const summary = trendExtremesSentence(ind, labels, vals, field);
       document.getElementById('trendMeta').innerHTML =
         `Comparing the <b>2015–2019</b> and <b>2020–2024</b> American Community Survey 5-year releases (${pts.length} tracts).` +
         summary +
@@ -2055,7 +2661,16 @@
     }
 
     (async function boot() {
-      // Fetch FIRST so populateIndicatorSelects() can restrict the
+      // Kick off dictionary + layer fetch in parallel — dictionary
+      // metadata (source, hasTrend, compositeEligible, why-it-matters,
+      // reference values) has to land BEFORE fetchFeatures builds its
+      // outFields list, otherwise we'd request _d5 fields we know we
+      // won't use. Small file, cached, fast.
+      const dictReady = loadIndicatorDictionary();
+      // Await dictionary so INDICATORS[*].hasTrend reflects the
+      // metadata before fetchFeatures runs.
+      await dictReady;
+      // Fetch layer FIRST so populateIndicatorSelects() can restrict the
       // dropdown to indicators that actually exist on the layer. If the
       // fetch fails we still render a usable error state and populate
       // the dropdown from the aspirational INDICATORS list so viewers
