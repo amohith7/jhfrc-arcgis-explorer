@@ -702,35 +702,49 @@
         // visible CSS grid before we try to measure or redraw.
         // Diagnostic log so we can see whether the container has a
         // real size at nudge time — helps if this still fails.
-        requestAnimationFrame(() => {
-          requestAnimationFrame(() => {
-            if (!state.mapView) return;
-            const c = state.mapView.container;
-            try {
-              const info = `container=${c.offsetWidth}x${c.offsetHeight} ready=${state.mapView.ready} suspended=${state.mapView.suspended}`;
-              console.log(`[map] tab-return nudge: ${info}`);
-              // 1 + 2: kick every observer we can reach.
-              c.dispatchEvent(new Event('resize'));
-              window.dispatchEvent(new Event('resize'));
-              // 3: force pipeline re-run via extent.
-              const ext = state.mapView.extent;
-              if (ext) state.mapView.goTo(ext, { animate: false })
-                .catch(e => console.warn('[map] goTo failed', e));
-              // 4: force pipeline via center clone (independent path).
-              const center = state.mapView.center;
-              if (center && typeof center.clone === 'function') {
-                state.mapView.center = center.clone();
-              }
-              // 5: rewriting constraints forces internal invalidation
-              // even when values are equal — the SDK compares by
-              // reference and always accepts a new object.
-              const con = state.mapView.constraints;
-              if (con) state.mapView.constraints = { ...con };
-            } catch (e) {
-              console.warn('[map] tab-return nudge failed:', e);
+        // 150ms delay to let CSS layout resolve fully. The previous
+        // 2xrAF fired while the grid still had #mapView at its
+        // intrinsic canvas width (295px) — see [map] diagnostic on
+        // the previous fix. The CSS `min-width: 0` on #mapView is
+        // the primary fix; this timing widen is belt-and-braces.
+        setTimeout(() => {
+          if (!state.mapView) return;
+          const c = state.mapView.container;
+          try {
+            const canvas = c.querySelector('canvas');
+            const canvasInfo = canvas
+              ? `canvas=${canvas.width}x${canvas.height} css=${Math.round(canvas.getBoundingClientRect().width)}x${Math.round(canvas.getBoundingClientRect().height)}`
+              : 'canvas=MISSING';
+            const layerInfo = state.layer
+              ? `layer.loaded=${state.layer.loaded}`
+              : 'layer=null';
+            console.log(`[map] tab-return: container=${c.offsetWidth}x${c.offsetHeight} ready=${state.mapView.ready} suspended=${state.mapView.suspended} ${canvasInfo} ${layerInfo}`);
+            // 1 + 2: kick every size observer we can reach.
+            c.dispatchEvent(new Event('resize'));
+            window.dispatchEvent(new Event('resize'));
+            // 3: force layer to redraw itself — the strongest lever
+            // available on the FeatureLayer.
+            if (state.layer && typeof state.layer.refresh === 'function') {
+              state.layer.refresh();
             }
-          });
-        });
+            // 4: force pipeline re-run via extent.
+            const ext = state.mapView.extent;
+            if (ext) state.mapView.goTo(ext, { animate: false })
+              .catch(e => console.warn('[map] goTo failed', e));
+            // 5: force pipeline via center clone (independent path).
+            const center = state.mapView.center;
+            if (center && typeof center.clone === 'function') {
+              state.mapView.center = center.clone();
+            }
+            // 6: rewriting constraints forces internal invalidation
+            // even when values are equal — the SDK compares by
+            // reference and always accepts a new object.
+            const con = state.mapView.constraints;
+            if (con) state.mapView.constraints = { ...con };
+          } catch (e) {
+            console.warn('[map] tab-return nudge failed:', e);
+          }
+        }, 150);
       }
       if (dirty.has(t.dataset.view)) renderView(t.dataset.view);
       closeSidebarDrawer();
