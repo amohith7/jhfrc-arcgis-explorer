@@ -133,8 +133,16 @@ def publish(
             "tags": ",".join(tags),
             "snippet": snippet,
         }
-        added = gis.content.add(item_props, str(upload))
-        print(f"  Uploaded item: {added.id}")
+        # AGOL rejects (409) if an item with the same *filename* already
+        # exists in this user's content. Derive a unique upload name
+        # from the title so re-runs against the same GPKG land as
+        # distinct items (v3, v4, v5 all coexist without collision).
+        import re as _re
+
+        safe = _re.sub(r"[^A-Za-z0-9]+", "_", title).strip("_").lower()
+        upload_name = f"{safe}{upload.suffix}"
+        added = gis.content.add(item_props, str(upload), filename=upload_name)
+        print(f"  Uploaded item: {added.id}  (name: {upload_name})")
         publish_params = {"targetSR": {"wkid": target_sr}}
         print(f"  Publishing with targetSR={target_sr} (matches source GPKG)")
         published = added.publish(publish_parameters=publish_params)
