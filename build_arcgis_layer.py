@@ -145,6 +145,13 @@ SHAPEFILE_FIELD_ALIASES = {
     "private_ins_county": "prin_cnty",
     "private_ins_state": "prin_st",
     "private_ins_us": "prin_us",
+    # _univ fan-out (task #123) — same 10-char DBF ceiling.
+    "foreign_born_univ": "frgn_unv",
+    "hh_pubasst_univ": "hhpb_unv",
+    "edu_posths_univ": "edpt_unv",
+    "housing_old_univ": "hous_unv",
+    "live_alon_65_univ": "la65_unv",
+    "private_ins_univ": "prin_unv",
 }
 
 
@@ -234,6 +241,18 @@ def wide_pivot(long_df: "pd.DataFrame") -> "pd.DataFrame":  # type: ignore  # no
             columns={c: f"{c}{suffix}" for c in bench.columns if c not in keep_cols}
         )
         wide = wide.merge(bench, on=keep_cols, how="left")
+    # Task #123: per-tract universe (denominator) values for
+    # universe-weighted aggregation fallback in Compare Counties.
+    # Populated by build_rollout_dataset.apply_universes() from
+    # data/acs_universes.parquet (via tools/pull_acs_universes.py).
+    if "universe" in hl.columns:
+        univ = hl.pivot_table(
+            index=keep_cols, columns="short", values="universe", aggfunc="first",
+        ).reset_index()
+        univ = univ.rename(
+            columns={c: f"{c}_univ" for c in univ.columns if c not in keep_cols}
+        )
+        wide = wide.merge(univ, on=keep_cols, how="left")
     return wide
 
 
