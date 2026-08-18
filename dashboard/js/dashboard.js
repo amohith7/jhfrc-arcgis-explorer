@@ -772,6 +772,22 @@
       'delta', 'delta_window',
       'suppressed', 'source', 'source_vintage', 'estimate_basis',
     ];
+    // Brief 5 S7 — plain-label second header row so a non-analyst
+    // opening the CSV in Excel sees human-readable columns while
+    // machine-parsing tools (pandas, R, Power BI) still get the
+    // field ids from row 1. Pandas: pd.read_csv(..., skiprows=[1]).
+    const B9_HEADER_PLAIN = [
+      'Geography type', 'Geography ID', 'Geography name',
+      'Tract GEOID', 'County FIPS',
+      'Indicator ID', 'Indicator', 'Unit',
+      'Value', 'Universe (denominator)', 'Estimated count of people',
+      'Margin of error (ACS 90%)', 'CI lower bound (PLACES 95%)',
+      'CI upper bound (PLACES 95%)', 'Coefficient of variation (%)',
+      'Uncertainty schema (ACS vs PLACES)',
+      'Change (2015-19 → 2020-24)', 'Change window',
+      'Suppressed for privacy', 'Data source',
+      'Data vintage', 'Estimate basis (published vs aggregated)',
+    ];
     // Uncertainty schema per Amendment B1 — ACS carries a 90% MOE,
     // PLACES carries a 95% CI. Once E2 publishes the fields we read
     // them per-source; today the columns exist but are empty.
@@ -874,7 +890,10 @@
         .sort((a, b) => b[ind.id] - a[ind.id]);
       const rows = visible.map(t => _b9RowForTract(t, ind));
       const stamp = todayISO();
-      downloadCsv(`jhfrc_ranking_${ind.id}_${stamp}.csv`, B9_HEADER, rows, csvProvenanceLines());
+      // Brief 5 S7: plain-label second header row before the data,
+      // so analysts get field ids (row 1) and end-users get labels
+      // (row 2). pandas: pd.read_csv(..., skiprows=[1]).
+      downloadCsv(`jhfrc_ranking_${ind.id}_${stamp}.csv`, B9_HEADER, [B9_HEADER_PLAIN, ...rows], csvProvenanceLines());
     });
     document.getElementById('compareCsvBtn')?.addEventListener('click', () => {
       const counties = [...selectedCounties()].sort();
@@ -893,7 +912,8 @@
         }
       }
       const stamp = todayISO();
-      downloadCsv(`jhfrc_compare_${stamp}.csv`, B9_HEADER, rows, csvProvenanceLines());
+      // Brief 5 S7 — plain-label second header row.
+      downloadCsv(`jhfrc_compare_${stamp}.csv`, B9_HEADER, [B9_HEADER_PLAIN, ...rows], csvProvenanceLines());
     });
 
     // ─── About panel (Brief 3 Amendments A6) ────────────────────────
@@ -935,7 +955,15 @@
         parts.push(`<div>${ind.why_it_matters}</div>`);
       }
       parts.push('<dl>');
-      if (ind.source) parts.push(`<dt>Source</dt><dd>${ind.source}${ind.table ? ` · Table ${ind.table}` : ind.measure_id ? ` · Measure ${ind.measure_id}` : ''}</dd>`);
+      if (ind.source) {
+        // Brief 5 S3 — expand acronyms on first use in each view.
+        const expanded = ind.source === 'ACS'
+          ? 'American Community Survey (ACS)'
+          : ind.source === 'PLACES'
+            ? 'CDC PLACES (population-level small-area estimates)'
+            : ind.source;
+        parts.push(`<dt>Source</dt><dd>${expanded}${ind.table ? ` · Table ${ind.table}` : ind.measure_id ? ` · Measure ${ind.measure_id}` : ''}</dd>`);
+      }
       if (ind.universe) parts.push(`<dt>Universe</dt><dd>${ind.universe}</dd>`);
       if (ind.limitation) parts.push(`<dt>Limitation</dt><dd>${ind.limitation}</dd>`);
       const ref = [];
@@ -1449,6 +1477,24 @@
       return 'no';
     }
 
+    // Brief 5 S3 translation: never render `Pearson r = 0.XX` at
+    // tier 1. Plain-language equivalent for the correlation view.
+    // The raw r stays available via title attributes / analyst
+    // exports; front-facing text uses this sentence.
+    function plainCorrelationSentence(r, labelA, labelB) {
+      if (r == null) {
+        return `Not enough matched tract values to describe how <b>${labelA}</b> and <b>${labelB}</b> relate.`;
+      }
+      const a = Math.abs(r);
+      const direction = r > 0 ? 'the same' : 'opposite';
+      let strength;
+      if (a >= 0.6) strength = 'strongly tend to occur in';
+      else if (a >= 0.4) strength = 'somewhat tend to occur in';
+      else if (a >= 0.2) strength = 'weakly tend to occur in';
+      else return `<b>${labelA}</b> and <b>${labelB}</b> have little relationship across these communities. This does not mean one is unrelated to the other in individual cases.`;
+      return `<b>${labelA}</b> and <b>${labelB}</b> ${strength} the ${direction} communities. This does not mean one causes the other.`;
+    }
+
     function renderCorrelation() {
       const fx = state.indA, fy = state.indB;
       const indX = INDICATORS.find(i => i.id === fx);
@@ -1459,14 +1505,14 @@
         f[fx] != null && !isNaN(f[fx]) &&
         f[fy] != null && !isNaN(f[fy])).map(f => ({ x: f[fx], y: f[fy], tract: f.tract_geoid, county: f.county_name }));
       const r = pearsonR(pts.map(p => p.x), pts.map(p => p.y));
-      const rColor = r == null ? '#6b7280'
-                   : Math.abs(r) >= 0.6 ? '#dc2626'
-                   : Math.abs(r) >= 0.4 ? '#374151'
-                   : '#6b7280';
+      // Brief 5 S3: front-facing sentence, no `r = 0.XX`. The raw
+      // statistic is preserved in a title attribute for analyst hover
+      // (and in CSV exports once F4 lands).
+      const rTitle = r != null
+        ? `Pearson r = ${r.toFixed(3)}  (n = ${pts.length}). Correlation is not causation.`
+        : `Insufficient matched values (n = ${pts.length}) to compute a correlation coefficient.`;
       document.getElementById('scatterMeta').innerHTML =
-        `<b>${indX?.label}</b> vs <b>${indY?.label}</b> · ${pts.length} tracts · ` +
-        `Pearson r = <b style="color:${rColor}">${r != null ? r.toFixed(3) : '—'}</b> ` +
-        `(${corrStrengthLabel(r)} correlation)`;
+        `<span title="${rTitle}">${plainCorrelationSentence(r, indX?.label ?? fx, indY?.label ?? fy)} <span style="color:#6b7280">Based on ${pts.length} matched tract values.</span></span>`;
 
       if (state.charts.scatter) state.charts.scatter.destroy();
       const ctx = document.getElementById('scatterChart').getContext('2d');
@@ -1544,8 +1590,11 @@
                 const d = c.raw;
                 const a = INDICATORS.find(i => i.id === CORR[d.x])?.label;
                 const b = INDICATORS.find(i => i.id === CORR[d.y])?.label;
-                const rTxt = d.raw == null ? 'not computable' : `r=${d.raw.toFixed(3)}`;
-                return `${a} vs ${b}: ${rTxt}  (n=${d.n})`;
+                // Brief 5 S3 — plaintext tooltip strips HTML from
+                // the plain-language sentence, replaces the raw r
+                // with a plain description of strength + direction.
+                const plain = plainCorrelationSentence(d.raw, a, b).replace(/<\/?[^>]+>/g, '');
+                return `${plain} (${d.n} matched tracts)`;
               }
             } }
           },
