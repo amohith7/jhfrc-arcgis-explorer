@@ -176,6 +176,61 @@
     .compare-table td.better { color: var(--green); font-weight: 600; }
     .compare-table td.worse { color: var(--red); font-weight: 600; }
     .compare-table td.same { color: var(--gray-600); }
+    /* Responsive table container — fills the available analysis-view
+       height minus a small padding, scrolls both axes when the table
+       has many columns (multi-county compare) or long content. */
+    .compare-scroll {
+      flex: 1 1 auto;
+      min-height: 240px;
+      max-height: calc(100vh - 260px);
+      overflow: auto;
+      -webkit-overflow-scrolling: touch;
+      border: 1px solid var(--gray-200);
+      border-radius: 4px;
+    }
+    .analysis-view { flex: 1; min-height: 0; }
+    .analysis-panel { display: flex; flex-direction: column; min-height: 0; }
+    /* Charts that should grow with the panel + browser height */
+    .chart-box {
+      position: relative;
+      flex: 1 1 auto;
+      min-height: 220px;
+      display: flex;
+    }
+    .chart-box canvas { flex: 1; width: 100% !important; height: 100% !important; }
+
+    /* Tablet (< 1100px): shrink the KPI panel, narrow the sidebar */
+    @media (max-width: 1100px) {
+      main { grid-template-columns: 240px 1fr; }
+      .overview-grid { grid-template-columns: 1fr 320px; }
+    }
+
+    /* Mobile (< 800px): stack everything vertically */
+    @media (max-width: 800px) {
+      .app { grid-template-rows: auto 40px 1fr; }
+      header { grid-template-columns: 1fr; row-gap: 6px; padding: 8px 12px; text-align: center; }
+      header .logo { justify-self: center; height: 40px; }
+      header .titles { justify-self: center; }
+      header .titles h1 { font-size: 15px; }
+      header .status { justify-self: center; }
+      main { grid-template-columns: 1fr; }
+      .sidebar {
+        border-right: none; border-bottom: 1px solid var(--gray-300);
+        max-height: 240px;
+      }
+      .tabs { overflow-x: auto; }
+      .tab { padding: 10px 12px; font-size: 12px; white-space: nowrap; }
+      .overview-grid {
+        grid-template-columns: 1fr;
+        grid-template-rows: 300px auto 240px;
+      }
+      #mapView { grid-row: 1; grid-column: 1; }
+      .kpi-panel { grid-row: 2; grid-column: 1; }
+      .chart-panel.wide { grid-row: 3; grid-column: 1; }
+      .kpis { grid-template-columns: 1fr; }
+      .compare-scroll { max-height: calc(100vh - 320px); }
+      .split-controls { grid-template-columns: 1fr; }
+    }
     /* Loading */
     .loading {
       position: absolute; inset: 0;
@@ -297,11 +352,11 @@
               <h3>Scatter — Primary vs Secondary indicator</h3>
               <div class="footnote" style="margin: 4px 0 12px 0;">Each dot is one tract. Pearson correlation shown below.</div>
               <div id="scatterMeta" style="font-size:12px; color:var(--gray-800); margin-bottom:8px;"></div>
-              <div style="height:360px;"><canvas id="scatterChart"></canvas></div>
+              <div class="chart-box"><canvas id="scatterChart"></canvas></div>
             </div>
             <div class="analysis-panel">
-              <h3>Correlation matrix — 10 headline indicators</h3>
-              <div style="height:300px;"><canvas id="corrChart"></canvas></div>
+              <h3>Correlation matrix — 12 headline indicators</h3>
+              <div class="chart-box" style="min-height:280px;"><canvas id="corrChart"></canvas></div>
             </div>
           </div>
         </div>
@@ -319,7 +374,7 @@
                 for indicators with a defined direction). Numbers are
                 county averages across all tracts in the selected county.
               </div>
-              <div style="overflow:auto; max-height:600px;">
+              <div class="compare-scroll">
                 <table class="compare-table" id="compareTable">
                   <thead><tr id="compareHeaderRow"><th>Indicator</th></tr></thead>
                   <tbody></tbody>
@@ -336,11 +391,11 @@
               <h3>5-year change (average) by county — selected indicator</h3>
               <div class="footnote" style="margin:4px 0 12px 0;">Positive = value has increased over 5 years, negative = decreased. Interpret direction using your knowledge of the indicator (e.g., poverty going up is bad; broadband access going up is good).</div>
               <div id="trendMeta" style="font-size:12px; color:var(--gray-800); margin-bottom:8px;"></div>
-              <div style="height:400px;"><canvas id="trendChart"></canvas></div>
+              <div class="chart-box"><canvas id="trendChart"></canvas></div>
             </div>
             <div class="analysis-panel">
               <h3>5-year change distribution (all tracts)</h3>
-              <div style="height:240px;"><canvas id="trendHistogram"></canvas></div>
+              <div class="chart-box" style="min-height:200px;"><canvas id="trendHistogram"></canvas></div>
             </div>
           </div>
         </div>
@@ -351,7 +406,7 @@
             <div class="analysis-panel">
               <h3>All tracts ranked — selected indicator</h3>
               <div class="footnote" style="margin:4px 0 12px 0;">Sorted high to low across visible counties. Row shading: red = worst 10%, green = best 10% (relative to displayed distribution).</div>
-              <div style="max-height:560px; overflow:auto;">
+              <div class="compare-scroll">
                 <table class="compare-table" id="rankingTable">
                   <thead><tr><th>#</th><th>Tract</th><th>County</th><th class="num">Value</th><th class="num">5-yr Δ</th></tr></thead>
                   <tbody></tbody>
