@@ -194,7 +194,12 @@
       gap: 10px;
       padding: 10px;
     }
-    #mapView { background: #eef2f7; border-radius: 6px; position: relative; grid-row: 1; grid-column: 1; min-height: 420px; }
+    /* min-width: 0 + min-height: 0 are the critical fix for the
+       "map goes 295px wide on tab return" bug. Without them, the
+       grid item shrinks to fit the ArcGIS canvas's intrinsic
+       width (which stayed at its last-render size), and 1fr never
+       expands. See PR #19 write-up for the full trace. */
+    #mapView { background: #eef2f7; border-radius: 6px; position: relative; grid-row: 1; grid-column: 1; min-height: 420px; min-width: 0; overflow: hidden; }
     .kpi-panel { background: white; border-radius: 6px; padding: 14px; grid-row: 1; grid-column: 2; overflow-y: auto; }
     .chart-panel { background: white; border-radius: 6px; padding: 12px 16px; overflow: hidden; display: flex; flex-direction: column; min-height: 340px; }
     .chart-panel.wide { grid-row: 2; grid-column: 1 / 3; }
