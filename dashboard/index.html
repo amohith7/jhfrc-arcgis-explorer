@@ -43,7 +43,7 @@
       height: 100vh;
       font-size: 13px;
     }
-    .app { display: grid; grid-template-rows: 56px 40px 1fr; height: 100vh; }
+    .app { display: grid; grid-template-rows: 72px 40px 1fr; height: 100vh; }
     header {
       background: linear-gradient(90deg, var(--navy) 0%, var(--navy-light) 100%);
       color: white;
@@ -54,7 +54,9 @@
       column-gap: 18px;
       border-bottom: 3px solid var(--gold);
     }
-    header .logo { justify-self: start; height: 44px; width: auto; display: block; }
+    header .logo { justify-self: start; height: 52px; width: auto; display: block; }
+    header .titles h1 { font-size: 17px; }
+    header .titles .subtitle { font-size: 12px; }
     header .titles { justify-self: center; text-align: center; }
     header .titles h1 { margin: 0; font-size: 16px; font-weight: 600; line-height: 1.15; }
     header .titles .subtitle { color: #d1d5db; font-size: 11px; margin-top: 2px; }
@@ -216,7 +218,30 @@
         <div class="section">
           <h3>Secondary Indicator</h3>
           <select id="indicatorSelectB"></select>
-          <div class="footnote" style="margin-top:6px;">Used for Correlation + Compare views.</div>
+          <div class="footnote" style="margin-top:6px;">Used for Correlation view.</div>
+        </div>
+        <div class="section">
+          <h3>Map Color Palette</h3>
+          <select id="paletteSelect">
+            <optgroup label="Sequential">
+              <option value="Red 3">Red</option>
+              <option value="Orange 3">Orange</option>
+              <option value="Green 3">Green</option>
+              <option value="Blue 3">Blue</option>
+              <option value="Purple 3">Purple</option>
+              <option value="Gray 4">Gray</option>
+            </optgroup>
+            <optgroup label="Diverging">
+              <option value="Red and Green 8">Red — Green</option>
+              <option value="Red and Blue 6">Red — Blue</option>
+              <option value="Yellow and Purple 1">Yellow — Purple</option>
+              <option value="Brown and Blue-Green 1">Brown — Teal</option>
+            </optgroup>
+            <optgroup label="Auto">
+              <option value="__auto" selected>Auto (by indicator direction)</option>
+            </optgroup>
+          </select>
+          <div class="footnote" style="margin-top:6px;">Auto picks red for "higher is worse", green for "higher is better", blue when neutral.</div>
         </div>
         <div class="section">
           <h3>Counties</h3>
@@ -281,26 +306,20 @@
           </div>
         </div>
 
-        <!-- COMPARE COUNTIES (multi-select) -->
+        <!-- COMPARE COUNTIES (multi-select — driven by sidebar filter) -->
         <div class="view" id="view-compare">
           <div class="analysis-view">
             <div class="analysis-panel">
               <h3>Compare counties side by side</h3>
               <div class="footnote" style="margin-bottom:10px;">
-                Pick two or more counties. Each becomes a column. The
-                <b>Best</b> column highlights the county with the most
-                favorable value for that indicator (only for indicators
-                with a defined direction). Numbers are county averages
-                across all tracts.
+                Add or remove counties using the <b>Counties</b> filter
+                in the left sidebar. Each selected county becomes a
+                column. The <b>Best</b> column highlights the county
+                with the most favorable value for that indicator (only
+                for indicators with a defined direction). Numbers are
+                county averages across all tracts in the selected county.
               </div>
-              <div id="cmpCountyPicker" class="county-list" style="max-height:140px; margin-bottom:12px;">
-                <!-- checkboxes populated dynamically -->
-              </div>
-              <div class="county-actions" style="max-width:280px; margin-bottom:12px;">
-                <button id="cmpAll">Select all</button>
-                <button id="cmpNone">Clear</button>
-              </div>
-              <div style="overflow:auto; max-height:520px;">
+              <div style="overflow:auto; max-height:600px;">
                 <table class="compare-table" id="compareTable">
                   <thead><tr id="compareHeaderRow"><th>Indicator</th></tr></thead>
                   <tbody></tbody>
@@ -459,6 +478,9 @@
       document.getElementById('indicatorSelectB').value = state.indB;
       document.getElementById('indicatorSelect').addEventListener('change', e => { state.indA = e.target.value; updateAll(); });
       document.getElementById('indicatorSelectB').addEventListener('change', e => { state.indB = e.target.value; updateAll(); });
+      // Palette picker — restyle the map only (no other view depends on it)
+      const pal = document.getElementById('paletteSelect');
+      if (pal) pal.addEventListener('change', () => restyleMap());
     }
 
     async function fetchFeatures() {
@@ -486,35 +508,22 @@
     }
 
     function populateCounties() {
+      // Single source of truth: the sidebar county filter. Every view
+      // (Overview map, Correlation, Compare, Trends, Ranking) reacts to
+      // its checkbox state. All counties selected by default.
       const box = document.getElementById('countyList');
-      const cmpBox = document.getElementById('cmpCountyPicker');
       const sorted = [...state.counties].sort();
-      sorted.forEach((c, i) => {
-        // Sidebar county filter (drives every view)
+      for (const c of sorted) {
         const lbl = document.createElement('label');
         lbl.innerHTML = `<input type="checkbox" value="${c}" checked> ${c}`;
         box.appendChild(lbl);
         lbl.querySelector('input').addEventListener('change', updateAll);
-        // Compare tab checklist — default: first + last only, so the
-        // table isn't overwhelming on first visit but user can enable
-        // more with a click.
-        const cmpLbl = document.createElement('label');
-        const preChecked = (i === 0 || i === sorted.length - 1) ? 'checked' : '';
-        cmpLbl.innerHTML = `<input type="checkbox" value="${c}" ${preChecked}> ${c}`;
-        cmpBox.appendChild(cmpLbl);
-        cmpLbl.querySelector('input').addEventListener('change', renderCompare);
-      });
+      }
       document.getElementById('selectAll').addEventListener('click', () => {
         box.querySelectorAll('input').forEach(i => i.checked = true); updateAll();
       });
       document.getElementById('selectNone').addEventListener('click', () => {
         box.querySelectorAll('input').forEach(i => i.checked = false); updateAll();
-      });
-      document.getElementById('cmpAll').addEventListener('click', () => {
-        cmpBox.querySelectorAll('input').forEach(i => i.checked = true); renderCompare();
-      });
-      document.getElementById('cmpNone').addEventListener('click', () => {
-        cmpBox.querySelectorAll('input').forEach(i => i.checked = false); renderCompare();
       });
     }
 
@@ -577,7 +586,12 @@
             }
           });
           state.layer = layer;
-          const map = new Map({ basemap: 'gray-vector', layers: [layer] });
+          // OpenStreetMap as the default — free, familiar, no attribution
+          // concerns. Viewers can swap via the Basemap Gallery widget.
+          const map = new Map({ basemap: 'osm', layers: [layer] });
+          // Semi-transparent choropleth so the OSM roads / labels show
+          // through instead of being covered by solid polygons.
+          layer.opacity = 0.65;
           state.mapView = new MapView({ container: 'mapView', map, center: [-85.3, 35.6], zoom: 7 });
           state.mapView.when(() => {
             clearTimeout(failTimer);
@@ -636,20 +650,55 @@
       if (!mapModules || !state.layer) return;
       const field = state.indA;
       const ind = INDICATORS.find(i => i.id === field);
+      const paletteSel = document.getElementById('paletteSelect');
+      const chosenPalette = paletteSel ? paletteSel.value : '__auto';
+      // Auto pick: red if higher is worse, green if higher is better,
+      // gray-blue if neutral. Otherwise honor the user's explicit pick.
+      let colorScheme;
+      if (chosenPalette === '__auto') {
+        colorScheme = ind && ind.higherIsWorse === true  ? 'Red 3'
+                    : ind && ind.higherIsWorse === false ? 'Green 3'
+                    : 'Blue 3';
+      } else {
+        colorScheme = chosenPalette;
+      }
       try {
         const rendererResult = await mapModules.colorRendererCreator.createClassBreaksRenderer({
           layer: state.layer, view: state.mapView, field,
           classificationMethod: 'quantile', numClasses: 5,
+          colorScheme: { name: colorScheme },
           legendOptions: { title: ind ? ind.label : field }
         });
         state.layer.renderer = rendererResult.renderer;
-      } catch (e) { console.warn('Smart mapping failed', e); }
+      } catch (e) {
+        console.warn('Smart mapping failed with scheme', colorScheme, e);
+        // Fallback: try without the explicit scheme
+        try {
+          const r2 = await mapModules.colorRendererCreator.createClassBreaksRenderer({
+            layer: state.layer, view: state.mapView, field,
+            classificationMethod: 'quantile', numClasses: 5,
+            legendOptions: { title: ind ? ind.label : field }
+          });
+          state.layer.renderer = r2.renderer;
+        } catch (e2) { console.warn('Fallback smart mapping failed', e2); }
+      }
       const counties = [...selectedCounties()];
       if (counties.length && counties.length < state.counties.size) {
         const list = counties.map(c => `'${c.replace(/'/g, "''")}'`).join(',');
         state.layer.definitionExpression = `county_name IN (${list})`;
       } else {
         state.layer.definitionExpression = '';
+      }
+      // Zoom to the visible tracts so the selection fills the map.
+      // Skip when nothing is selected (definitionExpression would return
+      // no features and .queryExtent would error).
+      if (counties.length > 0) {
+        try {
+          const { extent } = await state.layer.queryExtent();
+          if (extent && state.mapView) {
+            await state.mapView.goTo(extent.expand(1.15), { duration: 600 });
+          }
+        } catch (e) { /* extent query is best-effort, don't crash on failure */ }
       }
     }
 
@@ -862,8 +911,8 @@
     // ─────────────────────────────────────────────────────────────────────
     // Compare N counties (multi-select)
     function renderCompare() {
-      const selected = [...document.querySelectorAll('#cmpCountyPicker input:checked')]
-        .map(i => i.value);
+      // Sidebar county filter is the single source of truth now.
+      const selected = [...selectedCounties()].sort();
       const header = document.getElementById('compareHeaderRow');
       const tbody = document.querySelector('#compareTable tbody');
       // Rebuild header: Indicator | <County1> | <County2> | ... | Best
