@@ -44,3 +44,7 @@ Thumbs.db
 # Logs
 logs/
 *.log
+
+# Probe outputs (screenshots + downloaded CSVs from tools/probe.py)
+tools/probe_out/
+tools/probe*.csv
