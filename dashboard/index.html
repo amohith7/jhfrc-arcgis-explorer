@@ -46,10 +46,20 @@
     }
     .app {
       display: grid;
-      grid-template-rows: 72px 40px 1fr;
+      /* Explicit auto row for any late-added elements (defensive against
+         a stray sibling silently absorbing the 1fr row, which is what
+         happened when #sidebarBackdrop was previously nested inside
+         .app — see Brief 2 B2). */
+      grid-template-rows: 72px 40px 1fr auto;
       height: 100vh;
       height: 100dvh;
     }
+    /* Mobile-only chrome. Base rules keep them hidden at every viewport
+       so the desktop tab bar stays uncluttered (Brief 2 B1) and the
+       backdrop doesn't steal a grid row (Brief 2 B2). Mobile overrides
+       further down turn them on. */
+    #filtersToggle { display: none; }
+    #sidebarBackdrop { display: none; }
     header {
       background: linear-gradient(90deg, var(--navy) 0%, var(--navy-light) 100%);
       color: white;
@@ -145,8 +155,11 @@
     /* Same shading rules for the full ranking table on the Ranking
        tab. The classes are applied in renderRanking() ONLY when the
        indicator has a defined direction (higherIsWorse != null). */
-    #rankingTable tbody tr.worst-tract { background: rgba(220,38,38,0.08); }
-    #rankingTable tbody tr.best-tract  { background: rgba(5,150,105,0.08); }
+    /* Row-level shading is set on each td (not the tr) so the sticky
+       first column in the mobile layout keeps the same shade instead
+       of painting white over it. Brief 2 B4. */
+    #rankingTable tbody tr.worst-tract td { background: rgba(220,38,38,0.08); }
+    #rankingTable tbody tr.best-tract  td { background: rgba(5,150,105,0.08); }
     /* Sidebar controls */
     .section { margin-bottom: 20px; }
     .section h3 { margin: 0 0 6px 0; font-size: 11px; color: var(--gray-600); font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; }
@@ -311,9 +324,14 @@
       /* Sticky first column in Compare + Ranking tables so users don't
          lose track of the row label while scrolling many county columns. */
       .compare-table th:first-child, .compare-table td:first-child {
-        position: sticky; left: 0;
-        background: white; z-index: 1;
+        position: sticky; left: 0; z-index: 1;
+        /* Fallback background for un-shaded rows. Shaded rows set their
+           own td backgrounds via the .best-tract / .worst-tract rules
+           above so the sticky cell inherits the shade (Brief 2 B4). */
+        background: white;
       }
+      #rankingTable tbody tr.worst-tract td:first-child { background: rgba(220,38,38,0.08); }
+      #rankingTable tbody tr.best-tract  td:first-child { background: rgba(5,150,105,0.08); }
       .compare-table thead th:first-child { background: var(--gray-100); z-index: 2; }
     }
 
@@ -357,9 +375,6 @@
       <div class="tab" data-view="trends">Trends (5-yr)</div>
       <div class="tab" data-view="ranking">Tract Ranking</div>
     </div>
-    <!-- Backdrop for the mobile sidebar drawer -->
-    <div id="sidebarBackdrop"></div>
-
     <main>
       <!-- SIDEBAR: shared filters -->
       <aside class="sidebar">
@@ -527,6 +542,9 @@
       </div>
     </main>
   </div>
+  <!-- Sidebar drawer backdrop lives OUTSIDE .app so it can't steal a
+       grid row (Brief 2 B2). It's position:fixed when active. -->
+  <div id="sidebarBackdrop"></div>
 
   <script>
     // ─────────────────────────────────────────────────────────────────────
@@ -710,6 +728,19 @@
       }
     }
 
+    // Spreads (std dev, range) are also expressed in percentage points
+    // for percent indicators — a std dev of 10.1% is misleading because
+    // that reads as an absolute rate, not a spread. Same reasoning as
+    // fmtDelta but sign-free. Brief 2 B8.
+    function fmtSpread(v, ind) {
+      if (v == null || (typeof v === 'number' && isNaN(v))) return '—';
+      const s = fmtDelta(v, ind);
+      // fmtDelta strips the sign for 0 values, but for spreads any 0
+      // input just returns 0 with the correct unit; strip leading + / −
+      // otherwise.
+      return s.replace(/^[+−]/, '');
+    }
+
     // ─────────────────────────────────────────────────────────────────────
     function populateIndicatorSelects() {
       // Filter to indicators that actually exist on the published layer,
@@ -810,7 +841,7 @@
         const lbl = document.createElement('label');
         lbl.innerHTML = `<input type="checkbox" value="${c}" checked> ${c}`;
         box.appendChild(lbl);
-        lbl.querySelector('input').addEventListener('change', updateAll);
+        lbl.querySelector('input').addEventListener('change', scheduleUpdateAll);
       }
       document.getElementById('selectAll').addEventListener('click', () => {
         box.querySelectorAll('input').forEach(i => i.checked = true); updateAll();
@@ -824,7 +855,8 @@
       return new Set([...document.querySelectorAll('#countyList input:checked')].map(i => i.value));
     }
 
-    // Tabs
+    // Tabs — activation renders the just-opened view if it's dirty
+    // (Brief 2 B5, works with the lazy render dispatch above).
     document.querySelectorAll('.tab').forEach(t => {
       t.addEventListener('click', () => {
         document.querySelectorAll('.tab').forEach(x => x.classList.remove('active'));
@@ -832,26 +864,51 @@
         t.classList.add('active');
         document.getElementById('view-' + t.dataset.view).classList.add('active');
         if (t.dataset.view === 'overview' && state.mapView) state.mapView.container.style.display = 'block';
+        // If the newly-activated view has stale data, render it now.
+        if (dirty.has(t.dataset.view)) renderView(t.dataset.view);
         // Close the mobile drawer after picking a tab, so the newly
         // visible view isn't hidden underneath the sidebar.
         closeSidebarDrawer();
       });
     });
 
-    // Mobile sidebar drawer: Filters button toggles, backdrop click closes,
-    // and any filter change auto-closes so the map is visible again.
+    // Mobile sidebar drawer: Filters button toggles; tab click and
+    // backdrop click close it. Filter changes intentionally do NOT
+    // auto-close — a phone user typically toggles several counties in
+    // sequence, and closing between each toggle destroys the flow.
+    // Escape closes for keyboard users. Focus moves into the sidebar
+    // on open and back to the toggle on close for a11y. Brief 2 B8.
     const sidebarEl = document.querySelector('.sidebar');
     const backdropEl = document.getElementById('sidebarBackdrop');
     const filtersToggle = document.getElementById('filtersToggle');
+    if (sidebarEl) {
+      sidebarEl.setAttribute('id', 'sidebarDrawer');
+      sidebarEl.setAttribute('role', 'region');
+      sidebarEl.setAttribute('aria-label', 'Filters');
+    }
+    if (filtersToggle) {
+      filtersToggle.setAttribute('aria-controls', 'sidebarDrawer');
+      filtersToggle.setAttribute('aria-expanded', 'false');
+    }
     function openSidebarDrawer() {
       if (!sidebarEl) return;
       sidebarEl.setAttribute('data-open', 'true');
       if (backdropEl) backdropEl.setAttribute('data-open', 'true');
+      if (filtersToggle) filtersToggle.setAttribute('aria-expanded', 'true');
+      // Move focus into the first interactive element in the sidebar
+      // so screen-reader / keyboard users land inside the drawer.
+      const target = sidebarEl.querySelector('button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])');
+      if (target && typeof target.focus === 'function') target.focus();
     }
     function closeSidebarDrawer() {
       if (!sidebarEl) return;
+      const wasOpen = sidebarEl.getAttribute('data-open') === 'true';
       sidebarEl.removeAttribute('data-open');
       if (backdropEl) backdropEl.removeAttribute('data-open');
+      if (filtersToggle) filtersToggle.setAttribute('aria-expanded', 'false');
+      if (wasOpen && filtersToggle && typeof filtersToggle.focus === 'function') {
+        filtersToggle.focus();
+      }
     }
     if (filtersToggle) {
       filtersToggle.addEventListener('click', () => {
@@ -935,7 +992,7 @@
             const legendExpand = new Expand({
               view: state.mapView, content: legend,
               expandTooltip: 'Show legend', group: 'top-right',
-              expandIcon: 'legend', expanded: true,
+              expandIcon: 'legend', expanded: window.innerWidth > 800,
             });
             state.mapView.ui.add(legendExpand, 'top-right');
             // "Reset view" — re-fits to the currently-visible tract
@@ -979,22 +1036,14 @@
             // Scale bar + fullscreen
             state.mapView.ui.add(new ScaleBar({ view: state.mapView, unit: 'imperial' }), 'bottom-left');
             state.mapView.ui.add(new Fullscreen({ view: state.mapView }), 'bottom-right');
-            // Auto-focus: zoom to fit the currently-visible tracts +
-            // give the MapView keyboard focus (so arrow keys pan and
-            // +/- zoom). "Auto focus" was previously happening only as
-            // a side effect of the first restyleMap call, which
-            // occasionally raced with the layer loading.
-            (async () => {
-              try {
-                await state.layer.when();
-                const { extent } = await state.layer.queryExtent();
-                if (extent) {
-                  await state.mapView.goTo(extent.expand(1.15), { duration: 700 });
-                }
-                state.mapView.focus();
-              } catch (_) { /* best-effort */ }
-              restyleMap();
-            })();
+            // On layer-load, just apply the initial renderer. The fit-
+            // to-extent happens inside restyleMap() itself so we fit
+            // ONCE, AFTER the choropleth is on the map (Brief 2 B7).
+            // Do NOT call state.mapView.focus() here: it steals keyboard
+            // focus on page load, so arrow keys pan the map instead of
+            // scrolling the page. Focus only moves on the Reset-view
+            // button click, which the user initiated (Brief 2 B8).
+            state.layer.when().then(() => restyleMap()).catch(() => restyleMap());
           }, (err) => {
             clearTimeout(failTimer);
             console.error('MapView init error:', err);
@@ -1047,30 +1096,13 @@
       } else {
         state.layer.definitionExpression = '';
       }
-      // Give the layer view a moment to acknowledge the new filter
-      // before we ask the smart-mapping renderer to compute breaks.
-      try {
-        const lv = await state.mapView.whenLayerView(state.layer);
-        if (lv && lv.watch) {
-          await new Promise(res => {
-            const h = lv.watch('updating', v => { if (!v) { h.remove(); res(); } });
-            setTimeout(() => { try { h.remove(); } catch(_){} res(); }, 1200);
-          });
-        }
-      } catch (_) { /* ignore — best-effort */ }
-      // Compute class breaks. In "regional" mode we compute against ALL
-      // features (breaks stay comparable across filter changes). In
-      // "current" mode we use the currently-filtered view (default AGOL
-      // behavior). Regional is the default because filter-toggling
-      // with recomputed breaks silently misleads.
-      // Look up the ColorScheme object by name via the symbology/color
-      // module. Passing { name: 'Red 3' } directly to createClassBreaksRenderer
-      // was throwing "Cannot read properties of undefined (reading 'map')"
-      // inside cloneScheme in SDK 4.30 — the renderer expects a full scheme
-      // object, not a partial name reference. If lookup fails (unknown
-      // scheme name), we omit colorScheme entirely and let the SDK pick a
-      // default; the manual quantile fallback below still catches any
-      // remaining failure.
+      // "regional" mode: compute quantiles from the full state.features
+      // (all counties, unfiltered) in-browser. No layer mutation, no
+      // network round trip, no layer-view wait, no visible flash of
+      // hidden tracts. This is Brief 2 B6's preferred primary path for
+      // regional mode. Smart mapping stays as the primary for "current"
+      // mode where recomputing against the filtered view is the point.
+      let smartMappingApplied = false;
       let schemeObj = null;
       try {
         if (mapModules.colorSchemes && mapModules.colorSchemes.getSchemeByName) {
@@ -1082,28 +1114,15 @@
           });
         }
       } catch (e) { /* fall through to default scheme */ }
-      const rendererParams = {
-        layer: state.layer, view: state.mapView, field,
-        classificationMethod: 'quantile', numClasses: 5,
-        legendOptions: { title: ind ? ind.label : field }
-      };
-      if (schemeObj) rendererParams.colorScheme = schemeObj;
-      let smartMappingApplied = false;
-      if (scaleMode === 'regional') {
-        // Force renderer to consider the entire dataset by temporarily
-        // dropping the definitionExpression during the calculation.
-        const savedFilter = state.layer.definitionExpression;
-        state.layer.definitionExpression = '';
-        try {
-          const rendererResult = await mapModules.colorRendererCreator.createClassBreaksRenderer(rendererParams);
-          state.layer.renderer = rendererResult.renderer;
-          smartMappingApplied = true;
-        } catch (e) {
-          console.warn('Smart mapping (regional) failed', colorScheme, e);
-        } finally {
-          state.layer.definitionExpression = savedFilter;
-        }
-      } else {
+      if (scaleMode !== 'regional') {
+        // Current-selection mode still uses smart mapping so breaks
+        // recompute against the visible tracts as filters change.
+        const rendererParams = {
+          layer: state.layer, view: state.mapView, field,
+          classificationMethod: 'quantile', numClasses: 5,
+          legendOptions: { title: ind ? ind.label : field }
+        };
+        if (schemeObj) rendererParams.colorScheme = schemeObj;
         try {
           const rendererResult = await mapModules.colorRendererCreator.createClassBreaksRenderer(rendererParams);
           state.layer.renderer = rendererResult.renderer;
@@ -1112,11 +1131,8 @@
           console.warn('Smart mapping (current) failed', colorScheme, e);
         }
       }
-      // Manual fallback: if smart mapping did not apply a renderer for
-      // any reason (network hiccup, sample-size error, view not ready),
-      // compute quantile breaks in-browser from state.features and build
-      // a plain ClassBreaksRenderer. Guarantees the map is never left
-      // showing the layer's server-default single-color renderer.
+      // Manual quantile: primary path in regional mode, fallback in
+      // current mode. Deterministic, no network, always renders.
       if (!smartMappingApplied) {
         try {
           const vals = state.features
@@ -1148,7 +1164,9 @@
               classBreakInfos: infos,
               legendOptions: { title: ind ? ind.label : field },
             };
-            console.info('Applied manual quantile renderer as fallback.');
+            console.info(scaleMode === 'regional'
+              ? 'Applied manual quantile renderer (regional primary).'
+              : 'Applied manual quantile renderer (current-mode fallback).');
           }
         } catch (e) {
           console.error('Manual renderer fallback also failed:', e);
@@ -1223,8 +1241,8 @@
         document.getElementById('kpiMedian').textContent = fmt(median, ind);
         document.getElementById('kpiMin').textContent = fmt(min, ind);
         document.getElementById('kpiMax').textContent = fmt(max, ind);
-        document.getElementById('kpiStd').textContent = fmt(std, ind);
-        document.getElementById('kpiRange').textContent = fmt(max - min, ind);
+        document.getElementById('kpiStd').textContent = fmtSpread(std, ind);
+        document.getElementById('kpiRange').textContent = fmtSpread(max - min, ind);
         document.getElementById('kpiMinTract').textContent = minRow ? `${minRow.tract_geoid} · ${minRow.county_name}` : '';
         document.getElementById('kpiMaxTract').textContent = maxRow ? `${maxRow.tract_geoid} · ${maxRow.county_name}` : '';
       } else {
@@ -1277,7 +1295,13 @@
             },
             y: {
               title: { display: !!yTitle, text: yTitle || '', font: { size: 11, weight: '600' }, color: '#374151' },
-              ticks: { font: { size: 10 } }
+              // Unit-aware ticks (Brief 2 B8): render as "27.3%" / "$45,000"
+              // rather than a unitless number. For non-numeric ticks
+              // (category axis) fmt() safely returns the input.
+              ticks: {
+                font: { size: 10 },
+                callback: (v) => (typeof v === 'number' ? fmt(v, indicator) : v),
+              }
             }
           }
         }
@@ -1551,7 +1575,11 @@
           scales: {
             x: {
               title: { display: true, text: `5-Year change in ${ind?.label ?? field}`, font: { size: 11, weight: '600' }, color: '#374151' },
-              ticks: { font: { size: 10 } }
+              // Unit-aware ticks — reads "+3.2 pp" instead of "3.2".
+              ticks: {
+                font: { size: 10 },
+                callback: (v) => (typeof v === 'number' ? fmtDelta(v, ind) : v),
+              }
             },
             y: {
               title: { display: true, text: 'County', font: { size: 11, weight: '600' }, color: '#374151' },
@@ -1645,14 +1673,38 @@
     }
 
     // ─────────────────────────────────────────────────────────────────────
-    // Refresh everything
+    // Refresh — render only the currently-active view; mark the rest
+    // dirty so they render on tab activation. The map always restyles
+    // because it lives inside the Overview tab shell but drives the
+    // legend + filter context that all tabs share. Brief 2 B5.
+    const RENDERERS = {
+      overview:    renderOverview,
+      correlation: renderCorrelation,
+      compare:     renderCompare,
+      trends:      renderTrends,
+      ranking:     renderRanking,
+    };
+    const dirty = new Set(Object.keys(RENDERERS));
+    function activeView() {
+      const active = document.querySelector('.tab.active');
+      return active ? active.dataset.view : 'overview';
+    }
+    function renderView(name) {
+      if (RENDERERS[name]) RENDERERS[name]();
+      dirty.delete(name);
+    }
     function updateAll() {
-      renderOverview();
-      renderCorrelation();
-      renderCompare();
-      renderTrends();
-      renderRanking();
+      // Mark every view dirty, then render only the visible one.
+      for (const k of Object.keys(RENDERERS)) dirty.add(k);
+      renderView(activeView());
       restyleMap();
+    }
+    // Debounced entry-point used by the county checklist so rapid
+    // multi-select doesn't queue five restyleMap awaits in a row.
+    let _updateAllTimer = null;
+    function scheduleUpdateAll() {
+      if (_updateAllTimer) clearTimeout(_updateAllTimer);
+      _updateAllTimer = setTimeout(updateAll, 200);
     }
 
     (async function boot() {
