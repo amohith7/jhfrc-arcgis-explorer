@@ -567,6 +567,15 @@
         ...INDICATORS.map(i => i.id),
         ...INDICATORS.filter(i => i.hasTrend !== false).map(i => i.id + '_d5'),
         ...INDICATORS.map(i => i.id + '_supp'),
+        // Published county / state / US benchmark values per indicator
+        // (task #118) + universe-weighted-aggregation denominator
+        // (task #123). Filtered against `existing` below, so any
+        // indicator whose _county / _univ column isn't on the layer
+        // is silently dropped instead of throwing a 400.
+        ...INDICATORS.map(i => i.id + '_county'),
+        ...INDICATORS.map(i => i.id + '_state'),
+        ...INDICATORS.map(i => i.id + '_us'),
+        ...INDICATORS.map(i => i.id + '_univ'),
       ];
       const fields = desired.filter(f => existing.has(f));
       const missing = desired.filter(f => !existing.has(f));
