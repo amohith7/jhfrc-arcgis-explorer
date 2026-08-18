@@ -649,6 +649,22 @@
     }
 
     // Format a 5-year change with sign + unit-aware suffix.
+    // 5-stop palettes used by the manual-quantile renderer fallback.
+    // Keyed by the smart-mapping colorScheme name so the fallback
+    // matches the palette the user picked in the sidebar. Colors are
+    // colorblind-safe ColorBrewer sequences.
+    const MANUAL_PALETTES = {
+      'Red 3':    [[254,229,217,180],[252,174,145,180],[251,106,74,180],[222,45,38,180],[165,15,21,180]],
+      'Green 3':  [[237,248,233,180],[186,228,179,180],[116,196,118,180],[49,163,84,180],[0,109,44,180]],
+      'Blue 3':   [[239,243,255,180],[189,215,231,180],[107,174,214,180],[49,130,189,180],[8,81,156,180]],
+      'Purple 3': [[242,240,247,180],[203,201,226,180],[158,154,200,180],[117,107,177,180],[84,39,143,180]],
+      'Orange 3': [[254,237,222,180],[253,190,133,180],[253,141,60,180],[230,85,13,180],[166,54,3,180]],
+      'Gray 3':   [[247,247,247,180],[204,204,204,180],[150,150,150,180],[99,99,99,180],[37,37,37,180]],
+    };
+    function pickManualPalette(name) {
+      return MANUAL_PALETTES[name] || MANUAL_PALETTES['Blue 3'];
+    }
+
     // Percentage indicators emit "pp" (percentage points, not "%")
     // because a change from 12% to 14% is 2 percentage points, not "2%".
     function fmtDelta(v, ind) {
@@ -985,6 +1001,7 @@
         colorScheme: { name: colorScheme },
         legendOptions: { title: ind ? ind.label : field }
       };
+      let smartMappingApplied = false;
       if (scaleMode === 'regional') {
         // Force renderer to consider the entire dataset by temporarily
         // dropping the definitionExpression during the calculation.
@@ -993,6 +1010,7 @@
         try {
           const rendererResult = await mapModules.colorRendererCreator.createClassBreaksRenderer(rendererParams);
           state.layer.renderer = rendererResult.renderer;
+          smartMappingApplied = true;
         } catch (e) {
           console.warn('Smart mapping (regional) failed', colorScheme, e);
         } finally {
@@ -1002,16 +1020,51 @@
         try {
           const rendererResult = await mapModules.colorRendererCreator.createClassBreaksRenderer(rendererParams);
           state.layer.renderer = rendererResult.renderer;
+          smartMappingApplied = true;
         } catch (e) {
           console.warn('Smart mapping (current) failed', colorScheme, e);
-          try {
-            const r2 = await mapModules.colorRendererCreator.createClassBreaksRenderer({
-              layer: state.layer, view: state.mapView, field,
-              classificationMethod: 'quantile', numClasses: 5,
-              legendOptions: { title: ind ? ind.label : field }
-            });
-            state.layer.renderer = r2.renderer;
-          } catch (e2) { console.warn('Fallback smart mapping failed', e2); }
+        }
+      }
+      // Manual fallback: if smart mapping did not apply a renderer for
+      // any reason (network hiccup, sample-size error, view not ready),
+      // compute quantile breaks in-browser from state.features and build
+      // a plain ClassBreaksRenderer. Guarantees the map is never left
+      // showing the layer's server-default single-color renderer.
+      if (!smartMappingApplied) {
+        try {
+          const vals = state.features
+            .map(f => (f.attributes || f)[field])
+            .filter(v => v != null && !isNaN(v))
+            .sort((a, b) => a - b);
+          if (vals.length >= 5) {
+            const q = p => vals[Math.floor((vals.length - 1) * p)];
+            const cuts = [q(0.20), q(0.40), q(0.60), q(0.80), q(1.00)];
+            const palette = pickManualPalette(colorScheme);
+            const infos = [];
+            let prev = -Infinity;
+            for (let i = 0; i < cuts.length; i++) {
+              infos.push({
+                minValue: prev,
+                maxValue: cuts[i],
+                symbol: {
+                  type: 'simple-fill',
+                  color: palette[i],
+                  outline: { color: [255, 255, 255, 0.4], width: 0.4 },
+                },
+                label: `${fmt(prev === -Infinity ? vals[0] : prev, ind)} – ${fmt(cuts[i], ind)}`,
+              });
+              prev = cuts[i];
+            }
+            state.layer.renderer = {
+              type: 'class-breaks',
+              field,
+              classBreakInfos: infos,
+              legendOptions: { title: ind ? ind.label : field },
+            };
+            console.info('Applied manual quantile renderer as fallback.');
+          }
+        } catch (e) {
+          console.error('Manual renderer fallback also failed:', e);
         }
       }
       // Zoom to the visible tracts so the selection fills the map.
