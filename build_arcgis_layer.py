@@ -203,6 +203,24 @@ def emit_arcgis_layer(formats: list[str] = ["gpkg", "shp", "geojson"],) -> None:
     wide = wide_pivot(long_df)
     print(f"Wide pivot: {len(wide):,} tracts x {wide.shape[1]} columns")
 
+    # Coverage assertion (Brief 2 A1). Every configured HEADLINE_INDICATORS
+    # short-id must appear as a value column on the wide frame. Silent
+    # drift here is what let the last publish go out with only 21 of 61
+    # indicators — the pivot dropped any indicator whose Python label
+    # didn't match the source XML exactly, without ever raising.
+    expected = {short for short, _label in HEADLINE_INDICATORS}
+    present = set(wide.columns)
+    missing = sorted(expected - present)
+    if missing:
+        raise RuntimeError(
+            "HEADLINE_INDICATORS drift: the following configured "
+            f"short-ids did not survive the pivot ({len(missing)} of "
+            f"{len(expected)} missing). Verify each label matches the "
+            "source XML character-for-character (unicode dashes, "
+            f"percent signs, spacing):\n  - " + "\n  - ".join(missing)
+        )
+    print(f"Coverage OK: all {len(expected)} HEADLINE_INDICATORS present in the pivot.")
+
     joined = tracts.merge(wide, on="tract_geoid", how="inner")
     print(f"Joined to polygons: {len(joined):,} tracts")
 
