@@ -253,6 +253,8 @@
           if (meta.source) ind.source = meta.source;
           if (typeof meta.hasTrend === 'boolean') ind.hasTrend = meta.hasTrend;
           if (typeof meta.compositeEligible === 'boolean') ind.compositeEligible = meta.compositeEligible;
+          if (meta.trendGeographyBasis) ind.trendGeographyBasis = meta.trendGeographyBasis;
+          if (meta.trendCaveat) ind.trendCaveat = meta.trendCaveat;
           if (meta.universe) ind.universe = meta.universe;
           if (meta.why_it_matters) ind.why_it_matters = meta.why_it_matters;
           if (meta.limitation) ind.limitation = meta.limitation;
@@ -970,7 +972,13 @@
       if (typeof ind.us_avg === 'number') ref.push(`US ${fmt(ind.us_avg, ind)}`);
       if (typeof ind.tn_avg === 'number') ref.push(`TN ${fmt(ind.tn_avg, ind)}`);
       if (ref.length) parts.push(`<dt>Reference values</dt><dd>${ref.join(' &middot; ')}</dd>`);
-      if (ind.hasTrend === false) parts.push(`<dt>Trend</dt><dd>Change over time not shown (${ind.source === 'PLACES' ? 'CDC PLACES estimates are not comparable across releases' : 'delta not published for this indicator'}).</dd>`);
+      if (ind.hasTrend === false) {
+        parts.push(`<dt>Trend</dt><dd>Change over time not shown (${ind.source === 'PLACES' ? 'CDC PLACES estimates are not comparable across releases' : 'delta not published for this indicator'}).</dd>`);
+      } else if (ind.trendCaveat === 'places_model_refit') {
+        parts.push(`<dt>Trend caveat</dt><dd>PLACES estimates are model-based; some observed change may reflect CDC's model refit between releases rather than real change.</dd>`);
+      } else if (ind.trendGeographyBasis === 'harmonized_2020_tract') {
+        parts.push(`<dt>Trend basis</dt><dd>2015-2019 values are areally re-projected onto 2020 census tract geometry so change can be compared honestly.</dd>`);
+      }
       if (ind.compositeEligible === false) parts.push(`<dt>Composite eligibility</dt><dd>Excluded from composite scores by governance (${ind.domain === 'Race, Ethnicity & Language' ? 'fair-lending / fair-housing exposure' : 'CDC guidance against ranking areas with modeled small-area estimates'}).</dd>`);
       parts.push('</dl>');
       return parts.join('');
@@ -1126,14 +1134,16 @@
               expandIcon: 'basemap',
             });
             state.mapView.ui.add(basemapExpand, 'top-right');
-            // Legend (top-right, expands on click)
-            const legend = new Legend({ view: state.mapView });
-            const legendExpand = new Expand({
-              view: state.mapView, content: legend,
-              expandTooltip: 'Show legend', group: 'top-right',
-              expandIcon: 'legend', expanded: window.innerWidth > 800,
-            });
-            state.mapView.ui.add(legendExpand, 'top-right');
+            // The Esri Expand legend widget was replaced with a
+            // compact swatch ramp docked at the bottom of the map
+            // (Brief 3 D6c). ~40 px tall, always visible, never
+            // covers tracts, reads better on phones. Populated by
+            // renderMapLegend() at the end of restyleMap.
+            const legendEl = document.createElement('div');
+            legendEl.className = 'map-legend';
+            legendEl.id = 'mapLegend';
+            legendEl.hidden = true;
+            state.mapView.container.appendChild(legendEl);
             // "Reset view" — re-fits to the currently-visible tract
             // selection rather than the fixed initial extent. If the
             // user has filtered to 3 counties and panned away, this
@@ -1320,6 +1330,46 @@
           }
         } catch (e) { /* extent query is best-effort */ }
       }
+      // Refresh the compact swatch legend from the renderer we just
+      // applied (Brief 3 D6c). Runs after the renderer is in place.
+      renderMapLegend();
+    }
+
+    // ─── Compact swatch legend (Brief 3 D6c) ────────────────────────
+    // Replaces the Esri Expand widget. Reads breaks from whichever
+    // ClassBreaksRenderer is currently on state.layer — works for
+    // both the smart-mapping path (current-selection mode) and the
+    // manual quantile path (regional mode).
+    function renderMapLegend() {
+      const el = document.getElementById('mapLegend');
+      if (!el) return;
+      const r = state.layer && state.layer.renderer;
+      const infos = r && (r.classBreakInfos || (r.toJSON && (r.toJSON().classBreakInfos)));
+      const ind = INDICATORS_BY_ID[state.indA];
+      if (!infos || !infos.length) { el.hidden = true; return; }
+      // Extract colors — smart-mapping returns esri Color objects
+      // with r/g/b/a; the manual path stores plain RGBA arrays.
+      const swatches = infos.map(bi => {
+        const c = bi.symbol && bi.symbol.color;
+        if (!c) return 'rgba(148,163,184,0.6)';
+        if (Array.isArray(c)) {
+          const [rr, gg, bb, aa = 255] = c;
+          return `rgba(${rr},${gg},${bb},${(aa > 1 ? aa / 255 : aa).toFixed(2)})`;
+        }
+        return `rgba(${c.r},${c.g},${c.b},${c.a != null ? c.a : 1})`;
+      });
+      const minV = infos[0].minValue != null && isFinite(infos[0].minValue)
+        ? infos[0].minValue
+        : infos[0].maxValue;
+      const maxV = infos[infos.length - 1].maxValue;
+      const fmtLabel = v => (typeof v === 'number' && isFinite(v))
+        ? fmt(v, ind) : '';
+      el.innerHTML = `
+        <div class="title">${ind ? ind.label : 'Map value'}</div>
+        <div class="ramp">${swatches.map(bg => `<span style="background:${bg}"></span>`).join('')}</div>
+        <div class="scale"><span>${fmtLabel(minV)}</span><span>${fmtLabel(maxV)}</span></div>
+      `;
+      el.hidden = false;
     }
 
     // ─────────────────────────────────────────────────────────────────────
@@ -1789,24 +1839,40 @@
       clearChartEmpty('trendChart');
       clearChartEmpty('trendHistogram');
       if (!hasDelta) {
-        // Plain-language empty state — no jargon ("PLACES model-based
-        // estimates" would lose most viewers).
-        const line = ind && ind.source === 'PLACES'
-          ? 'This indicator comes from CDC PLACES, a statistical model that is re-fit each release. Change between releases is mostly model drift, not real change, so we do not show it.'
-          : 'Change data has not yet been published for this indicator.';
+        // Three reasons to withhold change over time, each with its
+        // own plain-language explanation:
+        //   1. PLACES: model re-fit each release, cross-release
+        //      change is model drift, not real change.
+        //   2. Geography basis unavailable (Brief 4 esc. Phase D):
+        //      the 2015-19 baseline uses 2010 tract boundaries and
+        //      the 2020-24 current uses 2020 tract boundaries. The
+        //      source pipeline joins by GEOID string with no
+        //      harmonization, so change values could be comparing
+        //      different physical territory.
+        //   3. Field not yet published on the layer.
+        const isPlaces = ind && ind.source === 'PLACES';
+        const geoBasisMissing = ind && ind.trendGeographyBasis === 'unavailable';
+        const line = isPlaces
+          ? 'This indicator comes from CDC PLACES, a statistical model that is re-fit for each release. Change between releases is mostly model drift, not real community change, so we do not show it.'
+          : geoBasisMissing
+            ? 'Change over time is temporarily withheld for every American Community Survey (ACS) indicator. The 2015-2019 baseline uses the old 2010 census tract boundaries while the 2020-2024 current uses new 2020 boundaries, and our source pipeline does not yet convert between them. Showing change on unharmonized geography could compare different physical neighborhoods. This will return once the source pipeline lands the 2010-to-2020 tract crosswalk.'
+            : 'Change data has not yet been published for this indicator on the layer.';
         document.getElementById('trendMeta').innerHTML =
           `<b>${ind?.label ?? field}</b> · ${line}`;
         for (const key of ['trend','trendHist']) {
           if (state.charts[key]) { state.charts[key].destroy(); state.charts[key] = null; }
         }
-        // DOM overlay instead of canvas fillText — HiDPI-safe, survives
-        // resize / retina rendering, matches surrounding typography.
-        // Brief 3 D6b.
-        setChartEmpty('trendChart',
-          ind && ind.source === 'PLACES'
-            ? 'PLACES estimates are not comparable across releases'
-            : 'Change over time not available for this indicator');
-        setChartEmpty('trendHistogram', 'No tract-level change data');
+        const chartOverlay = isPlaces
+          ? 'PLACES estimates are not comparable across releases'
+          : geoBasisMissing
+            ? 'Change temporarily withheld — geography harmonization pending'
+            : 'Change over time not available for this indicator';
+        setChartEmpty('trendChart', chartOverlay);
+        setChartEmpty('trendHistogram', isPlaces
+          ? 'Not shown for PLACES estimates'
+          : geoBasisMissing
+            ? 'Tract change not shown until harmonization lands'
+            : 'No tract-level change data');
         return;
       }
       const counties = selectedCounties();
@@ -1830,13 +1896,25 @@
       //    they don't need to remember direction conventions.
       const rise = ind && ind.higherIsWorse === true ? 'worse' : ind && ind.higherIsWorse === false ? 'better' : 'higher';
       const summary = trendExtremesSentence(ind, labels, vals, field);
+      const isPlaces = ind && ind.source === 'PLACES';
+      // Source-aware framing. ACS: "American Community Survey 5-year
+      // releases". PLACES: "CDC PLACES 2019 and 2024 releases" +
+      // model-refit caveat inline (Brief 3 Amendments B1 + user's
+      // include-PLACES-trends directive).
+      const sourceLine = isPlaces
+        ? `Comparing the <b>2019</b> and <b>2024</b> CDC PLACES releases across ${pts.length} tracts. Both values are re-projected onto 2020 census tract geometry.`
+        : `Comparing the <b>2015–2019</b> and <b>2020–2024</b> American Community Survey 5-year releases across ${pts.length} tracts. The 2015-19 baseline is re-projected onto 2020 census tract geometry.`;
+      const placesCaveat = isPlaces
+        ? ` <span style="color:#a16207;">Use caution: PLACES estimates come from a small-area model that CDC re-fits each release, so some of the change above may reflect model refit rather than real change.</span>`
+        : ``;
       document.getElementById('trendMeta').innerHTML =
-        `Comparing the <b>2015–2019</b> and <b>2020–2024</b> American Community Survey 5-year releases (${pts.length} tracts).` +
+        sourceLine +
         summary +
         ` A positive number means <b>${ind?.label ?? field}</b> went up between the two windows` +
         (ind?.higherIsWorse != null
           ? ` — for this indicator that is <b style="color:${ind.higherIsWorse ? '#dc2626' : '#059669'};">${rise}</b>.`
-          : `.`);
+          : `.`) +
+        placesCaveat;
       if (state.charts.trend) state.charts.trend.destroy();
       const colors = vals.map(v => {
         if (ind?.higherIsWorse == null) return '#112E51';

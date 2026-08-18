@@ -32,8 +32,11 @@
       "no_investment_advice": "Every scoring, ranking, and designation surface must carry a notice that this is descriptive research output and that eligibility must be verified with the administering agency.",
       "composite_allowlist": "compositeEligible defaults to true for ACS indicators outside the race/ethnicity/language domain and false for PLACES (per CDC guidance against ranking local areas from modeled estimates). Additions require explicit JHFRC review."
     },
-    "trend_geography_basis": "unavailable",
-    "trend_geography_note": "The source pipeline (jhfrc-community-profiles) computes 5-year change by joining ACS 2020-2024 (2020 tract vintage) to ACS 2015-2019 (2010 tract vintage) on GEOID string equality with no harmonization. Boundary changes between the 2010 and 2020 Census tract vintages mean that 'same GEOID' can refer to different physical territory. Per Brief 4 escalated Phase D, the _d5 display path is disabled across the board (hasTrend flag forced to false on every indicator) until the source pipeline harmonizes 2015-2019 values onto 2020 tract geography via a Census 2010-to-2020 tract relationship file or an equivalent population-weighted crosswalk."
+    "trend_geography_basis": "harmonized_2020_tract",
+    "trend_geography_note": "5-year change (delta) is computed on 2020 census tract geometry. The 2015-2019 ACS baseline (published on 2010 tract vintage) is areally re-projected onto 2020 tract geometry using the Census 2020-to-2010 tract relationship file (population-fraction apportionment for rates, primary-overlap for medians and Gini). PLACES 2019 baseline is treated the same way, and delta is computed against the current PLACES 2024 release on 2020 tract vintage. The pipeline that produced the deltas is tools/harmonize_deltas.py; the crosswalk files live at data/geo/tract_2020_to_2010_rel_st{47,13,01,37}.txt.",
+    "trend_harmonization_method": "areal_2010_to_2020",
+    "trend_last_harmonized": "2026-08-18",
+    "places_trend_caveat": "PLACES estimates are model-based (BRFSS + demographic covariates) and CDC's small-area model is re-fit for each release. Delta values between PLACES releases mix real epidemiological change with model refit drift, and the two cannot be separated from the published estimates alone. UI surfaces this caveat wherever a PLACES delta is displayed."
   },
   "indicators": {
     "pov_below": {
@@ -47,9 +50,9 @@
       "limitation": "The federal poverty line is a coarse threshold and does not adjust for local cost of living; underestimates hardship in high-cost metros.",
       "us_avg": 12.4,
       "tn_avg": 13.5,
-      "hasTrend": false,
+      "hasTrend": true,
       "compositeEligible": true,
-      "trendGeographyBasis": "unavailable"
+      "trendGeographyBasis": "harmonized_2020_tract"
     },
     "hh_snap": {
       "label": "Households Receiving Food Stamps (%)",
@@ -62,9 +65,9 @@
       "limitation": "Reflects program uptake; households eligible but not enrolled do not appear here.",
       "us_avg": 11.8,
       "tn_avg": 12.5,
-      "hasTrend": false,
+      "hasTrend": true,
       "compositeEligible": true,
-      "trendGeographyBasis": "unavailable"
+      "trendGeographyBasis": "harmonized_2020_tract"
     },
     "hh_pubasst": {
       "label": "Households Receiving Public Assistance (%)",
@@ -77,9 +80,9 @@
       "limitation": "Small absolute counts in most tracts; high MOE relative to point estimate.",
       "us_avg": 2.6,
       "tn_avg": 1.8,
-      "hasTrend": false,
+      "hasTrend": true,
       "compositeEligible": true,
-      "trendGeographyBasis": "unavailable"
+      "trendGeographyBasis": "harmonized_2020_tract"
     },
     "emp_adults": {
       "label": "Employed Adults (%)",
@@ -92,9 +95,9 @@
       "limitation": "Point-in-time; does not reflect underemployment or informal work.",
       "us_avg": 59.7,
       "tn_avg": 58.2,
-      "hasTrend": false,
+      "hasTrend": true,
       "compositeEligible": true,
-      "trendGeographyBasis": "unavailable"
+      "trendGeographyBasis": "harmonized_2020_tract"
     },
     "not_labor": {
       "label": "Not in Labor Force (%)",
@@ -107,9 +110,9 @@
       "limitation": "Includes retirees, students, caregivers; interpret alongside age structure.",
       "us_avg": 36.5,
       "tn_avg": 38.1,
-      "hasTrend": false,
+      "hasTrend": true,
       "compositeEligible": true,
-      "trendGeographyBasis": "unavailable"
+      "trendGeographyBasis": "harmonized_2020_tract"
     },
     "mhi": {
       "label": "Median Household Income ($)",
@@ -122,9 +125,9 @@
       "limitation": "Median is unstable at small denominators; can shift materially year to year in low-population tracts.",
       "us_avg": 75149,
       "tn_avg": 62166,
-      "hasTrend": false,
+      "hasTrend": true,
       "compositeEligible": true,
-      "trendGeographyBasis": "unavailable"
+      "trendGeographyBasis": "harmonized_2020_tract"
     },
     "mpci": {
       "label": "Mean Per Capita Income ($)",
@@ -137,9 +140,9 @@
       "limitation": "Mean is pulled by high-income outliers.",
       "us_avg": 43289,
       "tn_avg": 36700,
-      "hasTrend": false,
+      "hasTrend": true,
       "compositeEligible": true,
-      "trendGeographyBasis": "unavailable"
+      "trendGeographyBasis": "harmonized_2020_tract"
     },
     "gini": {
       "label": "Gini Index (Income Inequality)",
@@ -152,9 +155,9 @@
       "limitation": "Tract-level Gini has wide MOEs; treat as a rough band, not a precise value.",
       "us_avg": 0.48,
       "tn_avg": 0.47,
-      "hasTrend": false,
+      "hasTrend": true,
       "compositeEligible": true,
-      "trendGeographyBasis": "unavailable"
+      "trendGeographyBasis": "harmonized_2020_tract"
     },
     "edu_lths": {
       "label": "Less than High School Education (%)",
@@ -167,9 +170,9 @@
       "limitation": "Immigrant-heavy tracts can show elevated values with high correlated foreign-born share.",
       "us_avg": 10.5,
       "tn_avg": 11.2,
-      "hasTrend": false,
+      "hasTrend": true,
       "compositeEligible": true,
-      "trendGeographyBasis": "unavailable"
+      "trendGeographyBasis": "harmonized_2020_tract"
     },
     "edu_posths": {
       "label": "Any Post-High School Education (%)",
@@ -182,9 +185,9 @@
       "limitation": "Does not distinguish credentials with vs. without labor-market value.",
       "us_avg": 65.0,
       "tn_avg": 60.8,
-      "hasTrend": false,
+      "hasTrend": true,
       "compositeEligible": true,
-      "trendGeographyBasis": "unavailable"
+      "trendGeographyBasis": "harmonized_2020_tract"
     },
     "edu_assoc": {
       "label": "Associate's Degree (%)",
@@ -197,9 +200,9 @@
       "limitation": "Excludes those who moved on to a bachelor's.",
       "us_avg": 8.9,
       "tn_avg": 8.5,
-      "hasTrend": false,
+      "hasTrend": true,
       "compositeEligible": true,
-      "trendGeographyBasis": "unavailable"
+      "trendGeographyBasis": "harmonized_2020_tract"
     },
     "edu_ba": {
       "label": "Bachelor's Degree (%)",
@@ -212,9 +215,9 @@
       "limitation": "Not sensitive to STEM-vs-liberal-arts mix or credential quality.",
       "us_avg": 22.7,
       "tn_avg": 19.5,
-      "hasTrend": false,
+      "hasTrend": true,
       "compositeEligible": true,
-      "trendGeographyBasis": "unavailable"
+      "trendGeographyBasis": "harmonized_2020_tract"
     },
     "edu_grad": {
       "label": "Graduate/Professional Degree (%)",
@@ -227,9 +230,9 @@
       "limitation": "Tract-level MOEs are wide for low-share tracts.",
       "us_avg": 14.3,
       "tn_avg": 11.2,
-      "hasTrend": false,
+      "hasTrend": true,
       "compositeEligible": true,
-      "trendGeographyBasis": "unavailable"
+      "trendGeographyBasis": "harmonized_2020_tract"
     },
     "youth_dis": {
       "label": "Teens (Ages 16-19) Not in School & Unemployed (%)",
@@ -242,9 +245,9 @@
       "limitation": "Tiny denominators in many tracts; treat as unstable below n = 30.",
       "us_avg": 6.5,
       "tn_avg": 7.1,
-      "hasTrend": false,
+      "hasTrend": true,
       "compositeEligible": true,
-      "trendGeographyBasis": "unavailable"
+      "trendGeographyBasis": "harmonized_2020_tract"
     },
     "any_disab": {
       "label": "Any Disability (%)",
@@ -257,9 +260,9 @@
       "limitation": "Self-reported; captures both severity and cultural reporting differences.",
       "us_avg": 12.9,
       "tn_avg": 16.7,
-      "hasTrend": false,
+      "hasTrend": true,
       "compositeEligible": true,
-      "trendGeographyBasis": "unavailable"
+      "trendGeographyBasis": "harmonized_2020_tract"
     },
     "no_insur": {
       "label": "Uninsured (Ages 18-64) (%)",
@@ -272,9 +275,9 @@
       "limitation": "Point-in-time snapshot; does not reflect coverage churn.",
       "us_avg": 12.3,
       "tn_avg": 14.6,
-      "hasTrend": false,
+      "hasTrend": true,
       "compositeEligible": true,
-      "trendGeographyBasis": "unavailable"
+      "trendGeographyBasis": "harmonized_2020_tract"
     },
     "private_ins": {
       "label": "Private Insurance (All Ages) (%)",
@@ -287,9 +290,9 @@
       "limitation": "Does not distinguish employer-sponsored, individual-market, or exchange coverage.",
       "us_avg": 65.4,
       "tn_avg": 63.7,
-      "hasTrend": false,
+      "hasTrend": true,
       "compositeEligible": true,
-      "trendGeographyBasis": "unavailable"
+      "trendGeographyBasis": "harmonized_2020_tract"
     },
     "medicaid": {
       "label": "Medicaid Coverage (All Ages) (%)",
@@ -302,9 +305,9 @@
       "limitation": "Tennessee is a non-expansion state; interpret differently from expansion-state values.",
       "us_avg": 21.2,
       "tn_avg": 22.5,
-      "hasTrend": false,
+      "hasTrend": true,
       "compositeEligible": true,
-      "trendGeographyBasis": "unavailable"
+      "trendGeographyBasis": "harmonized_2020_tract"
     },
     "hh_diab": {
       "label": "Diabetes (%)",
@@ -317,9 +320,10 @@
       "limitation": "Model-based estimate; NOT comparable across PLACES releases.",
       "us_avg": 10.8,
       "tn_avg": 13.5,
-      "hasTrend": false,
+      "hasTrend": true,
       "compositeEligible": false,
-      "trendGeographyBasis": "unavailable"
+      "trendGeographyBasis": "harmonized_2020_tract",
+      "trendCaveat": "places_model_refit"
     },
     "hh_asthma": {
       "label": "Asthma (%)",
@@ -332,9 +336,10 @@
       "limitation": "Model-based estimate; NOT comparable across PLACES releases.",
       "us_avg": 9.8,
       "tn_avg": 10.6,
-      "hasTrend": false,
+      "hasTrend": true,
       "compositeEligible": false,
-      "trendGeographyBasis": "unavailable"
+      "trendGeographyBasis": "harmonized_2020_tract",
+      "trendCaveat": "places_model_refit"
     },
     "hh_heart": {
       "label": "Coronary Heart Disease (%)",
@@ -347,9 +352,10 @@
       "limitation": "Model-based estimate; NOT comparable across PLACES releases.",
       "us_avg": 6.1,
       "tn_avg": 7.3,
-      "hasTrend": false,
+      "hasTrend": true,
       "compositeEligible": false,
-      "trendGeographyBasis": "unavailable"
+      "trendGeographyBasis": "harmonized_2020_tract",
+      "trendCaveat": "places_model_refit"
     },
     "hh_bp": {
       "label": "High Blood Pressure (%)",
@@ -362,9 +368,10 @@
       "limitation": "Model-based estimate; NOT comparable across PLACES releases.",
       "us_avg": 32.3,
       "tn_avg": 37.8,
-      "hasTrend": false,
+      "hasTrend": true,
       "compositeEligible": false,
-      "trendGeographyBasis": "unavailable"
+      "trendGeographyBasis": "harmonized_2020_tract",
+      "trendCaveat": "places_model_refit"
     },
     "hh_bpmed": {
       "label": "Taking Blood Pressure Medication (%)",
@@ -377,9 +384,10 @@
       "limitation": "Denominator is those with hypertension, not the full adult population.",
       "us_avg": 75.8,
       "tn_avg": 78.2,
-      "hasTrend": false,
+      "hasTrend": true,
       "compositeEligible": false,
-      "trendGeographyBasis": "unavailable"
+      "trendGeographyBasis": "harmonized_2020_tract",
+      "trendCaveat": "places_model_refit"
     },
     "hh_chol": {
       "label": "High Cholesterol (%)",
@@ -392,9 +400,10 @@
       "limitation": "Only counts those screened; underestimates true prevalence.",
       "us_avg": 31.4,
       "tn_avg": 34.1,
-      "hasTrend": false,
+      "hasTrend": true,
       "compositeEligible": false,
-      "trendGeographyBasis": "unavailable"
+      "trendGeographyBasis": "harmonized_2020_tract",
+      "trendCaveat": "places_model_refit"
     },
     "hh_arthr": {
       "label": "Arthritis (%)",
@@ -407,9 +416,10 @@
       "limitation": "Correlates strongly with age; interpret alongside age structure.",
       "us_avg": 24.6,
       "tn_avg": 29.7,
-      "hasTrend": false,
+      "hasTrend": true,
       "compositeEligible": false,
-      "trendGeographyBasis": "unavailable"
+      "trendGeographyBasis": "harmonized_2020_tract",
+      "trendCaveat": "places_model_refit"
     },
     "hh_copd": {
       "label": "Chronic Obstructive Pulmonary Disease (COPD) (%)",
@@ -422,9 +432,10 @@
       "limitation": "Model-based estimate; NOT comparable across PLACES releases.",
       "us_avg": 6.4,
       "tn_avg": 9.2,
-      "hasTrend": false,
+      "hasTrend": true,
       "compositeEligible": false,
-      "trendGeographyBasis": "unavailable"
+      "trendGeographyBasis": "harmonized_2020_tract",
+      "trendCaveat": "places_model_refit"
     },
     "hh_stroke": {
       "label": "Stroke (%)",
@@ -437,9 +448,10 @@
       "limitation": "Prevalence, not incidence; captures survivors of stroke events.",
       "us_avg": 3.4,
       "tn_avg": 4.2,
-      "hasTrend": false,
+      "hasTrend": true,
       "compositeEligible": false,
-      "trendGeographyBasis": "unavailable"
+      "trendGeographyBasis": "harmonized_2020_tract",
+      "trendCaveat": "places_model_refit"
     },
     "ph_poor14": {
       "label": "Poor Physical Health >=14 Days (%)",
@@ -452,9 +464,10 @@
       "limitation": "Self-reported and threshold-sensitive; 14-day cutoff is arbitrary.",
       "us_avg": 12.5,
       "tn_avg": 15.3,
-      "hasTrend": false,
+      "hasTrend": true,
       "compositeEligible": false,
-      "trendGeographyBasis": "unavailable"
+      "trendGeographyBasis": "harmonized_2020_tract",
+      "trendCaveat": "places_model_refit"
     },
     "mh_poor14": {
       "label": "Poor Mental Health >=14 Days (%)",
@@ -467,9 +480,10 @@
       "limitation": "Self-reported; the 14-day cutoff and cultural reporting differences both matter.",
       "us_avg": 14.6,
       "tn_avg": 15.8,
-      "hasTrend": false,
+      "hasTrend": true,
       "compositeEligible": false,
-      "trendGeographyBasis": "unavailable"
+      "trendGeographyBasis": "harmonized_2020_tract",
+      "trendCaveat": "places_model_refit"
     },
     "fair_hlth": {
       "label": "Fair or Poor Self-Reported Health (%)",
@@ -482,9 +496,10 @@
       "limitation": "Self-reported and culturally variable.",
       "us_avg": 15.6,
       "tn_avg": 20.4,
-      "hasTrend": false,
+      "hasTrend": true,
       "compositeEligible": false,
-      "trendGeographyBasis": "unavailable"
+      "trendGeographyBasis": "harmonized_2020_tract",
+      "trendCaveat": "places_model_refit"
     },
     "smoke": {
       "label": "Smoking (%)",
@@ -497,9 +512,10 @@
       "limitation": "Model-based estimate; NOT comparable across PLACES releases.",
       "us_avg": 14.4,
       "tn_avg": 19.2,
-      "hasTrend": false,
+      "hasTrend": true,
       "compositeEligible": false,
-      "trendGeographyBasis": "unavailable"
+      "trendGeographyBasis": "harmonized_2020_tract",
+      "trendCaveat": "places_model_refit"
     },
     "binge": {
       "label": "Binge Drinking (%)",
@@ -512,9 +528,10 @@
       "limitation": "Self-reported; under-reports in more conservative regions.",
       "us_avg": 16.1,
       "tn_avg": 13.7,
-      "hasTrend": false,
+      "hasTrend": true,
       "compositeEligible": false,
-      "trendGeographyBasis": "unavailable"
+      "trendGeographyBasis": "harmonized_2020_tract",
+      "trendCaveat": "places_model_refit"
     },
     "no_activ": {
       "label": "No Leisure-Time Physical Activity (%)",
@@ -527,9 +544,10 @@
       "limitation": "Self-reported and threshold-sensitive.",
       "us_avg": 25.4,
       "tn_avg": 30.2,
-      "hasTrend": false,
+      "hasTrend": true,
       "compositeEligible": false,
-      "trendGeographyBasis": "unavailable"
+      "trendGeographyBasis": "harmonized_2020_tract",
+      "trendCaveat": "places_model_refit"
     },
     "obesity": {
       "label": "Obesity (%)",
@@ -542,9 +560,10 @@
       "limitation": "BMI-based; a coarse individual measure that works well at aggregate scale.",
       "us_avg": 33.9,
       "tn_avg": 37.6,
-      "hasTrend": false,
+      "hasTrend": true,
       "compositeEligible": false,
-      "trendGeographyBasis": "unavailable"
+      "trendGeographyBasis": "harmonized_2020_tract",
+      "trendCaveat": "places_model_refit"
     },
     "sleep_lt7": {
       "label": "Sleeping Less than 7 Hours (%)",
@@ -557,9 +576,10 @@
       "limitation": "Self-reported.",
       "us_avg": 34.8,
       "tn_avg": 37.1,
-      "hasTrend": false,
+      "hasTrend": true,
       "compositeEligible": false,
-      "trendGeographyBasis": "unavailable"
+      "trendGeographyBasis": "harmonized_2020_tract",
+      "trendCaveat": "places_model_refit"
     },
     "med_rent": {
       "label": "Median Gross Rent ($)",
@@ -572,9 +592,9 @@
       "limitation": "Median is unstable at small denominators.",
       "us_avg": 1348,
       "tn_avg": 1030,
-      "hasTrend": false,
+      "hasTrend": true,
       "compositeEligible": true,
-      "trendGeographyBasis": "unavailable"
+      "trendGeographyBasis": "harmonized_2020_tract"
     },
     "med_home": {
       "label": "Median Home Value ($)",
@@ -587,9 +607,9 @@
       "limitation": "Self-reported by owner; can lag or lead actual market values.",
       "us_avg": 303400,
       "tn_avg": 232100,
-      "hasTrend": false,
+      "hasTrend": true,
       "compositeEligible": true,
-      "trendGeographyBasis": "unavailable"
+      "trendGeographyBasis": "harmonized_2020_tract"
     },
     "owner_occ": {
       "label": "Owner-Occupied Households (%)",
@@ -602,9 +622,9 @@
       "limitation": "Does not distinguish outright-owned from mortgaged.",
       "us_avg": 65.2,
       "tn_avg": 67.3,
-      "hasTrend": false,
+      "hasTrend": true,
       "compositeEligible": true,
-      "trendGeographyBasis": "unavailable"
+      "trendGeographyBasis": "harmonized_2020_tract"
     },
     "renter_occ": {
       "label": "Renter-Occupied Households (%)",
@@ -617,9 +637,9 @@
       "limitation": "Complements owner-occupied; not independent of it.",
       "us_avg": 34.8,
       "tn_avg": 32.7,
-      "hasTrend": false,
+      "hasTrend": true,
       "compositeEligible": true,
-      "trendGeographyBasis": "unavailable"
+      "trendGeographyBasis": "harmonized_2020_tract"
     },
     "vacant": {
       "label": "Vacant Housing Units (%)",
@@ -632,9 +652,9 @@
       "limitation": "Includes seasonal/vacation units; interpret alongside geography.",
       "us_avg": 10.4,
       "tn_avg": 12.2,
-      "hasTrend": false,
+      "hasTrend": true,
       "compositeEligible": true,
-      "trendGeographyBasis": "unavailable"
+      "trendGeographyBasis": "harmonized_2020_tract"
     },
     "cost_owner": {
       "label": "Owners Paying >=30% of Income (%)",
@@ -647,9 +667,9 @@
       "limitation": "Does not distinguish moderate vs. severe cost burden (30-49% vs 50%+).",
       "us_avg": 27.5,
       "tn_avg": 23.8,
-      "hasTrend": false,
+      "hasTrend": true,
       "compositeEligible": true,
-      "trendGeographyBasis": "unavailable"
+      "trendGeographyBasis": "harmonized_2020_tract"
     },
     "cost_rent": {
       "label": "Renters Paying >=30% of Income (%)",
@@ -662,9 +682,9 @@
       "limitation": "Does not distinguish moderate vs. severe cost burden.",
       "us_avg": 49.3,
       "tn_avg": 46.1,
-      "hasTrend": false,
+      "hasTrend": true,
       "compositeEligible": true,
-      "trendGeographyBasis": "unavailable"
+      "trendGeographyBasis": "harmonized_2020_tract"
     },
     "housing_old": {
       "label": "Housing Built Before 1979 (%)",
@@ -677,9 +697,9 @@
       "limitation": "Age alone does not indicate condition; a well-maintained older home is not a hazard.",
       "us_avg": 34.7,
       "tn_avg": 28.3,
-      "hasTrend": false,
+      "hasTrend": true,
       "compositeEligible": true,
-      "trendGeographyBasis": "unavailable"
+      "trendGeographyBasis": "harmonized_2020_tract"
     },
     "bb_access": {
       "label": "Households with Broadband Access (%)",
@@ -692,9 +712,9 @@
       "limitation": "Self-reported subscription, not measured speed or reliability.",
       "us_avg": 90.3,
       "tn_avg": 87.8,
-      "hasTrend": false,
+      "hasTrend": true,
       "compositeEligible": true,
-      "trendGeographyBasis": "unavailable"
+      "trendGeographyBasis": "harmonized_2020_tract"
     },
     "no_intnet": {
       "label": "Households without Internet Access (%)",
@@ -707,9 +727,9 @@
       "limitation": "Includes households who declined to subscribe as well as those with no service available.",
       "us_avg": 6.4,
       "tn_avg": 7.9,
-      "hasTrend": false,
+      "hasTrend": true,
       "compositeEligible": true,
-      "trendGeographyBasis": "unavailable"
+      "trendGeographyBasis": "harmonized_2020_tract"
     },
     "no_veh": {
       "label": "Households without a Vehicle (%)",
@@ -722,9 +742,9 @@
       "limitation": "Interpreted differently in transit-rich vs. transit-poor tracts.",
       "us_avg": 8.4,
       "tn_avg": 5.7,
-      "hasTrend": false,
+      "hasTrend": true,
       "compositeEligible": true,
-      "trendGeographyBasis": "unavailable"
+      "trendGeographyBasis": "harmonized_2020_tract"
     },
     "transit": {
       "label": "Public Transit Commuters (%)",
@@ -737,9 +757,9 @@
       "limitation": "Reflects commute mode, not off-peak or intra-region travel.",
       "us_avg": 3.1,
       "tn_avg": 0.7,
-      "hasTrend": false,
+      "hasTrend": true,
       "compositeEligible": true,
-      "trendGeographyBasis": "unavailable"
+      "trendGeographyBasis": "harmonized_2020_tract"
     },
     "walk": {
       "label": "Workers Walking to Work (%)",
@@ -752,9 +772,9 @@
       "limitation": "Overestimates in college-town tracts and downtown employment cores.",
       "us_avg": 2.5,
       "tn_avg": 1.5,
-      "hasTrend": false,
+      "hasTrend": true,
       "compositeEligible": true,
-      "trendGeographyBasis": "unavailable"
+      "trendGeographyBasis": "harmonized_2020_tract"
     },
     "age_65p": {
       "label": "Population Age 65+ (%)",
@@ -767,9 +787,9 @@
       "limitation": "Not sensitive to health-status differences within the 65+ population.",
       "us_avg": 17.3,
       "tn_avg": 17.5,
-      "hasTrend": false,
+      "hasTrend": true,
       "compositeEligible": true,
-      "trendGeographyBasis": "unavailable"
+      "trendGeographyBasis": "harmonized_2020_tract"
     },
     "age_18_64": {
       "label": "Population Age 18-64 (%)",
@@ -782,9 +802,9 @@
       "limitation": "Does not distinguish employed, unemployed, or students.",
       "us_avg": 61.4,
       "tn_avg": 61.2,
-      "hasTrend": false,
+      "hasTrend": true,
       "compositeEligible": true,
-      "trendGeographyBasis": "unavailable"
+      "trendGeographyBasis": "harmonized_2020_tract"
     },
     "med_age": {
       "label": "Median Age",
@@ -797,9 +817,9 @@
       "limitation": "Median compresses bimodal distributions (e.g., a tract with many students AND many retirees).",
       "us_avg": 38.9,
       "tn_avg": 39.2,
-      "hasTrend": false,
+      "hasTrend": true,
       "compositeEligible": true,
-      "trendGeographyBasis": "unavailable"
+      "trendGeographyBasis": "harmonized_2020_tract"
     },
     "single_p": {
       "label": "Single-Parent Families (%)",
@@ -812,9 +832,9 @@
       "limitation": "Does not indicate the presence of extended-family support.",
       "us_avg": 22.7,
       "tn_avg": 26.3,
-      "hasTrend": false,
+      "hasTrend": true,
       "compositeEligible": true,
-      "trendGeographyBasis": "unavailable"
+      "trendGeographyBasis": "harmonized_2020_tract"
     },
     "live_alon_65": {
       "label": "Age 65+ Living Alone (%)",
@@ -827,9 +847,9 @@
       "limitation": "Household composition alone does not measure social contact.",
       "us_avg": 12.4,
       "tn_avg": 13.1,
-      "hasTrend": false,
+      "hasTrend": true,
       "compositeEligible": true,
-      "trendGeographyBasis": "unavailable"
+      "trendGeographyBasis": "harmonized_2020_tract"
     },
     "hh_size": {
       "label": "Average Household Size",
@@ -843,9 +863,9 @@
       "limitation": "Group-quarters populations distort in college-town or nursing-home-heavy tracts.",
       "us_avg": 2.55,
       "tn_avg": 2.47,
-      "hasTrend": false,
+      "hasTrend": true,
       "compositeEligible": true,
-      "trendGeographyBasis": "unavailable"
+      "trendGeographyBasis": "harmonized_2020_tract"
     },
     "married": {
       "label": "Married (%)",
@@ -858,9 +878,9 @@
       "limitation": "Does not distinguish first vs. remarriage or same-sex vs. opposite-sex couples.",
       "us_avg": 47.9,
       "tn_avg": 49.8,
-      "hasTrend": false,
+      "hasTrend": true,
       "compositeEligible": true,
-      "trendGeographyBasis": "unavailable"
+      "trendGeographyBasis": "harmonized_2020_tract"
     },
     "hisp": {
       "label": "Hispanic (%)",
@@ -873,9 +893,9 @@
       "limitation": "Category not mutually exclusive with racial categories.",
       "us_avg": 19.5,
       "tn_avg": 7.4,
-      "hasTrend": false,
+      "hasTrend": true,
       "compositeEligible": false,
-      "trendGeographyBasis": "unavailable"
+      "trendGeographyBasis": "harmonized_2020_tract"
     },
     "black": {
       "label": "Black / African American (%)",
@@ -888,9 +908,9 @@
       "limitation": "Non-Hispanic Black; interpret alongside Hispanic share.",
       "us_avg": 12.6,
       "tn_avg": 15.9,
-      "hasTrend": false,
+      "hasTrend": true,
       "compositeEligible": false,
-      "trendGeographyBasis": "unavailable"
+      "trendGeographyBasis": "harmonized_2020_tract"
     },
     "white": {
       "label": "White (%)",
@@ -903,9 +923,9 @@
       "limitation": "Non-Hispanic White; interpret alongside Hispanic share.",
       "us_avg": 58.9,
       "tn_avg": 71.9,
-      "hasTrend": false,
+      "hasTrend": true,
       "compositeEligible": false,
-      "trendGeographyBasis": "unavailable"
+      "trendGeographyBasis": "harmonized_2020_tract"
     },
     "asian": {
       "label": "Asian (%)",
@@ -918,9 +938,9 @@
       "limitation": "Non-Hispanic Asian; aggregates a heterogeneous set of national origins.",
       "us_avg": 6.3,
       "tn_avg": 2.1,
-      "hasTrend": false,
+      "hasTrend": true,
       "compositeEligible": false,
-      "trendGeographyBasis": "unavailable"
+      "trendGeographyBasis": "harmonized_2020_tract"
     },
     "foreign_born": {
       "label": "Foreign Born Population (%)",
@@ -933,9 +953,9 @@
       "limitation": "Includes naturalized citizens and non-citizens; does not distinguish immigration status.",
       "us_avg": 13.9,
       "tn_avg": 5.5,
-      "hasTrend": false,
+      "hasTrend": true,
       "compositeEligible": false,
-      "trendGeographyBasis": "unavailable"
+      "trendGeographyBasis": "harmonized_2020_tract"
     },
     "lang_span": {
       "label": "Spanish Speakers (Age 5+) (%)",
@@ -948,9 +968,9 @@
       "limitation": "Home language, not English proficiency.",
       "us_avg": 13.4,
       "tn_avg": 4.7,
-      "hasTrend": false,
+      "hasTrend": true,
       "compositeEligible": false,
-      "trendGeographyBasis": "unavailable"
+      "trendGeographyBasis": "harmonized_2020_tract"
     }
   }
 }
