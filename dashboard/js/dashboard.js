@@ -640,24 +640,6 @@
     // Enter/Space activate the focused tab (native <div role="tab">
     // needs this manually). Brief 2 C4 + B5.
     const tabEls = [...document.querySelectorAll('[role="tab"]')];
-    // DIAGNOSTIC (temporary — remove once map-return-to-tab fix
-    // lands cleanly). Logs the count now, and every click that
-    // reaches document, so we can tell whether the per-tab
-    // listener attaches, whether it fires, and where a stopped
-    // click intercepted the event.
-    console.log(`[diag] tabEls at bind time: ${tabEls.length}`,
-                tabEls.map(t => `#${t.id}=${t.dataset.view}`));
-    document.addEventListener('click', ev => {
-      const t = ev.target instanceof Element ? ev.target : null;
-      if (!t) return;
-      const tab = t.closest('[role="tab"]');
-      if (tab) {
-        console.log(`[diag] document click hit tab:`,
-                    { id: tab.id, view: tab.dataset.view,
-                      target: t.tagName + (t.id ? '#' + t.id : ''),
-                      defaultPrevented: ev.defaultPrevented });
-      }
-    }, { capture: true });
     function activateTab(t) {
       if (!t) return;
       // Class + ARIA state sync — every tab off, then this one on.
@@ -677,95 +659,40 @@
       // blank until nudged. Force display:block AND ask the MapView
       // to reflow, so the map redraws immediately instead of the user
       // seeing a blank tile until the next filter change.
-      // DIAGNOSTIC (temporary). console.log so it survives info-level
-      // filters. If this doesn't appear when the Overview tab is
-      // clicked, the tab wiring isn't reaching this branch at all.
-      if (t.dataset.view === 'overview') {
-        console.log('[map] Overview tab activated. state.mapView =',
-                    state.mapView ? 'present' : 'MISSING');
-      }
       if (t.dataset.view === 'overview' && state.mapView) {
         state.mapView.container.style.display = 'block';
-        // PR #15's requestAnimationFrame + goTo wasn't enough — the
-        // MapView appears to enter a "suspended" state while its
-        // container is under display:none, and goTo alone doesn't
-        // wake it. Combined nudge below hits every known revival
-        // path, in order:
-        //   1. resize event on container (kicks ResizeObserver)
-        //   2. resize event on window (kicks any global observer)
-        //   3. goTo(extent) — forces the render pipeline to run
-        //   4. rewrite mapView.center + zoom via clones — triggers
-        //      the SDK's animation → render loop even when the
-        //      values are unchanged
-        //   5. rewrite constraints — forces internal invalidation
-        // Two rAFs ensure browser layout has resolved the newly-
-        // visible CSS grid before we try to measure or redraw.
-        // Diagnostic log so we can see whether the container has a
-        // real size at nudge time — helps if this still fails.
-        // 150ms delay to let CSS layout resolve fully. The previous
-        // 2xrAF fired while the grid still had #mapView at its
-        // intrinsic canvas width (295px) — see [map] diagnostic on
-        // the previous fix. The CSS `min-width: 0` on #mapView is
-        // the primary fix; this timing widen is belt-and-braces.
+        // Reviving the map after the tab was hidden requires several
+        // nudges. Symptom: css=WxH on the canvas came back as 295x0
+        // after a hide/show cycle because ArcGIS's inner .esri-view
+        // container held stale inline height:0. Root fix was the
+        // CSS in css/dashboard.css (min-width:0 + height:100% + an
+        // !important override on .esri-view children). Belt-and-
+        // braces JS below:
+        //   1. resize event on container + window (kicks any
+        //      ResizeObserver ArcGIS attached).
+        //   2. state.layer.refresh() — the strongest FeatureLayer
+        //      redraw lever.
+        //   3. goTo(current extent) — re-runs the render pipeline.
+        //   4. rewrite center via clone — independent pipeline path.
+        //   5. rewrite constraints — forces internal invalidation.
+        // The 150ms delay lets CSS layout settle. A synchronous or
+        // rAF-scoped call fires before the grid has resolved.
         setTimeout(() => {
           if (!state.mapView) return;
           const c = state.mapView.container;
           try {
-            const canvas = c.querySelector('canvas');
-            const canvasInfo = canvas
-              ? `canvas=${canvas.width}x${canvas.height} css=${Math.round(canvas.getBoundingClientRect().width)}x${Math.round(canvas.getBoundingClientRect().height)}`
-              : 'canvas=MISSING';
-            const layerInfo = state.layer
-              ? `layer.loaded=${state.layer.loaded}`
-              : 'layer=null';
-            console.log(`[map] tab-return: container=${c.offsetWidth}x${c.offsetHeight} ready=${state.mapView.ready} suspended=${state.mapView.suspended} ${canvasInfo} ${layerInfo}`);
-            // Parent chain diag — find which ancestor is 295px wide.
-            const chain = [];
-            let el = c.parentElement, depth = 0;
-            while (el && depth < 8) {
-              const tag = el.tagName.toLowerCase();
-              const id = el.id ? '#' + el.id : '';
-              const cls = el.className && typeof el.className === 'string'
-                ? '.' + el.className.split(/\s+/).slice(0, 2).join('.')
-                : '';
-              const r = el.getBoundingClientRect();
-              chain.push(`${tag}${id}${cls}=${Math.round(r.width)}x${Math.round(r.height)}`);
-              el = el.parentElement;
-              depth++;
-            }
-            console.log('[map] ancestors:', chain.join('  <  '));
-            console.log('[map] viewport:', window.innerWidth + 'x' + window.innerHeight,
-                        'devicePixelRatio:', window.devicePixelRatio);
-            // Also grab the resolved grid template of .overview-grid
-            const grid = document.querySelector('.overview-grid');
-            if (grid) {
-              const gs = getComputedStyle(grid);
-              console.log('[map] .overview-grid computed:',
-                          'display=' + gs.display,
-                          'grid-template-columns=' + gs.gridTemplateColumns,
-                          'grid-template-rows=' + gs.gridTemplateRows,
-                          'rect=' + Math.round(grid.getBoundingClientRect().width) + 'x' + Math.round(grid.getBoundingClientRect().height));
-            }
-            // 1 + 2: kick every size observer we can reach.
             c.dispatchEvent(new Event('resize'));
             window.dispatchEvent(new Event('resize'));
-            // 3: force layer to redraw itself — the strongest lever
-            // available on the FeatureLayer.
             if (state.layer && typeof state.layer.refresh === 'function') {
               state.layer.refresh();
             }
-            // 4: force pipeline re-run via extent.
             const ext = state.mapView.extent;
             if (ext) state.mapView.goTo(ext, { animate: false })
               .catch(e => console.warn('[map] goTo failed', e));
-            // 5: force pipeline via center clone (independent path).
             const center = state.mapView.center;
             if (center && typeof center.clone === 'function') {
               state.mapView.center = center.clone();
             }
-            // 6: rewriting constraints forces internal invalidation
-            // even when values are equal — the SDK compares by
-            // reference and always accepts a new object.
             const con = state.mapView.constraints;
             if (con) state.mapView.constraints = { ...con };
           } catch (e) {
