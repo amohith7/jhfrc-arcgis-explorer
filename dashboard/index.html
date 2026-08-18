@@ -10,9 +10,13 @@
   <link rel="icon" type="image/png" sizes="16x16" href="favicon-16.png" />
   <link rel="apple-touch-icon" href="favicon.png" />
   <link rel="stylesheet" href="https://js.arcgis.com/4.30/esri/themes/light/main.css" />
-  <script src="https://js.arcgis.com/4.30/"></script>
+  <!-- Load Chart.js FIRST so its UMD auto-detect uses window.Chart,
+       not the AMD 'define' that ArcGIS's Dojo loader publishes next.
+       chartjs-plugin-annotation was previously included but conflicts
+       with Dojo's AMD registration and is never actually used, so it
+       is intentionally omitted. -->
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1"></script>
-  <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-annotation@3.0.1"></script>
+  <script src="https://js.arcgis.com/4.30/"></script>
 
   <style>
     :root {
