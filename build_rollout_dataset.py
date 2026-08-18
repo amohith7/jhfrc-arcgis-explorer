@@ -44,8 +44,10 @@ from xml.etree import ElementTree as ET
 
 try:
     import pandas as pd
+    import numpy as np
 except ImportError:  # pragma: no cover
     pd = None  # type: ignore
+    np = None  # type: ignore
 
 
 REPORTS_ROOT = Path(__file__).resolve().parent.parent / "jhfrc-community-profiles"
@@ -135,12 +137,23 @@ def parse_county_xml(xml_path: Path) -> list[dict]:
                     "vintage": 2024,
                     "value": tract_value,
                     "is_suppressed": tract_insuff,
+                    # delta_5yr is filled in from the XML for legacy
+                    # consumers, but Brief 4 v2 escalated Phase D §1
+                    # replaces it with harmonized values downstream —
+                    # see apply_harmonized_deltas() below.
                     "delta_5yr": delta_val,
                     "delta_direction": delta_direction,
                     "county_avg": _parse_numeric(county_val),
                     "state_avg": _parse_numeric(state_val),
                     "us_avg": _parse_numeric(us_val),
                     "source_pdf_path": _find_pdf_for(xml_path),
+                    # Trend-geography metadata (populated below when
+                    # harmonized deltas are applied; None on raw XML
+                    # rows and preserved for reporting).
+                    "trend_geography_basis": None,
+                    "trend_harmonization_method": None,
+                    "trend_harmonization_coverage": None,
+                    "n_source_tracts_for_delta": None,
                 }
             )
     return rows
@@ -234,6 +247,77 @@ def write_outputs(rows: Iterable[dict], data_dir: Path) -> None:
             print(f"  (skip parquet — {e})")
 
 
+def apply_harmonized_deltas(rows: list[dict], data_dir: Path) -> None:
+    """Override delta_5yr from data/harmonized_deltas.parquet.
+
+    Brief 4 v2 escalated Phase D §1. Rows are matched by
+    (tract_geoid, indicator_name). Rows without a matching harmonized
+    entry keep their None delta and their trend_geography_basis stays
+    'unavailable' (recorded for downstream consumers).
+    """
+    parquet = data_dir / "harmonized_deltas.parquet"
+    if not parquet.exists():
+        print(
+            f"\nWARNING: {parquet.name} not found. Run\n"
+            f"    python tools/harmonize_deltas.py\n"
+            f"to produce it. Deltas remain unharmonized and every row\n"
+            f"gets trend_geography_basis='unavailable' as a signal to\n"
+            f"downstream consumers."
+        )
+        for r in rows:
+            r["trend_geography_basis"] = "unavailable"
+        return
+
+    if pd is None:  # type: ignore[has-type]
+        print(
+            f"\nWARNING: pandas is not installed; cannot apply harmonized "
+            f"deltas. Deltas remain unharmonized; marking rows accordingly."
+        )
+        for r in rows:
+            r["trend_geography_basis"] = "unavailable"
+        return
+
+    print(f"\nApplying harmonized deltas from {parquet.name} ...")
+    hdf = pd.read_parquet(parquet)
+    # Key = (11-digit tract GEOID, indicator label). Both sides use
+    # the same label conventions (came from the same 2019+2024 vendor
+    # files that fed the XML pipeline).
+    lookup = {
+        (str(r.tract_geoid).zfill(11), r.indicator_name): r
+        for r in hdf.itertuples(index=False)
+    }
+    n_over = n_miss = 0
+    for row in rows:
+        key = (row["tract_geoid"], row["indicator_name"])
+        h = lookup.get(key)
+        if h is None:
+            n_miss += 1
+            # No harmonized value — mark trend basis unavailable so
+            # downstream displays honor the geography-gate default.
+            row["trend_geography_basis"] = "unavailable"
+            continue
+        # Only override delta if a numeric value came out of the
+        # harmonization (both 2019 and 2024 sides had a value).
+        d = h.delta_5yr_harmonized
+        if d is not None and not (isinstance(d, float) and np.isnan(d)):
+            row["delta_5yr"] = float(d)
+        row["trend_geography_basis"] = h.trend_geography_basis
+        row["trend_harmonization_method"] = h.trend_harmonization_method
+        row["trend_harmonization_coverage"] = (
+            float(h.trend_harmonization_coverage)
+            if h.trend_harmonization_coverage is not None
+            else None
+        )
+        row["n_source_tracts_for_delta"] = (
+            int(h.n_source_tracts) if h.n_source_tracts is not None else None
+        )
+        n_over += 1
+    print(
+        f"  matched + overrode delta_5yr: {n_over:,} rows\n"
+        f"  no harmonized value found:    {n_miss:,} rows (kept XML delta + marked unavailable)"
+    )
+
+
 def main(argv: Iterable[str] | None = None) -> int:
     ap = argparse.ArgumentParser(
         description="Aggregate per-county XML outputs into a tidy dataset."
@@ -260,6 +344,17 @@ def main(argv: Iterable[str] | None = None) -> int:
         all_rows.extend(parse_county_xml(x))
         n_added = len(all_rows) - n_before
         print(f"  {x.name}: {n_added} rows")
+
+    # Brief 4 v2 escalated Phase D §1: override the XML-sourced
+    # delta_5yr with geography-harmonized values from
+    # data/harmonized_deltas.parquet (produced by tools/harmonize_deltas.py).
+    # The XML deltas were computed by joining ACS 2015-19 (2010 tract
+    # vintage) to 2020-24 (2020 tract vintage) via GEOID string with no
+    # harmonization — invalid for any tract whose physical boundary
+    # differs across the two vintages. The parquet re-projects 2019
+    # values onto 2020 geometry via areal apportionment (or primary-
+    # overlap for medians) and computes fresh deltas.
+    apply_harmonized_deltas(all_rows, args.data_dir)
 
     write_outputs(all_rows, args.data_dir)
 

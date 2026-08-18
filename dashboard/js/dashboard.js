@@ -254,6 +254,7 @@
           if (typeof meta.hasTrend === 'boolean') ind.hasTrend = meta.hasTrend;
           if (typeof meta.compositeEligible === 'boolean') ind.compositeEligible = meta.compositeEligible;
           if (meta.trendGeographyBasis) ind.trendGeographyBasis = meta.trendGeographyBasis;
+          if (meta.trendCaveat) ind.trendCaveat = meta.trendCaveat;
           if (meta.universe) ind.universe = meta.universe;
           if (meta.why_it_matters) ind.why_it_matters = meta.why_it_matters;
           if (meta.limitation) ind.limitation = meta.limitation;
@@ -971,7 +972,13 @@
       if (typeof ind.us_avg === 'number') ref.push(`US ${fmt(ind.us_avg, ind)}`);
       if (typeof ind.tn_avg === 'number') ref.push(`TN ${fmt(ind.tn_avg, ind)}`);
       if (ref.length) parts.push(`<dt>Reference values</dt><dd>${ref.join(' &middot; ')}</dd>`);
-      if (ind.hasTrend === false) parts.push(`<dt>Trend</dt><dd>Change over time not shown (${ind.source === 'PLACES' ? 'CDC PLACES estimates are not comparable across releases' : 'delta not published for this indicator'}).</dd>`);
+      if (ind.hasTrend === false) {
+        parts.push(`<dt>Trend</dt><dd>Change over time not shown (${ind.source === 'PLACES' ? 'CDC PLACES estimates are not comparable across releases' : 'delta not published for this indicator'}).</dd>`);
+      } else if (ind.trendCaveat === 'places_model_refit') {
+        parts.push(`<dt>Trend caveat</dt><dd>PLACES estimates are model-based; some observed change may reflect CDC's model refit between releases rather than real change.</dd>`);
+      } else if (ind.trendGeographyBasis === 'harmonized_2020_tract') {
+        parts.push(`<dt>Trend basis</dt><dd>2015-2019 values are areally re-projected onto 2020 census tract geometry so change can be compared honestly.</dd>`);
+      }
       if (ind.compositeEligible === false) parts.push(`<dt>Composite eligibility</dt><dd>Excluded from composite scores by governance (${ind.domain === 'Race, Ethnicity & Language' ? 'fair-lending / fair-housing exposure' : 'CDC guidance against ranking areas with modeled small-area estimates'}).</dd>`);
       parts.push('</dl>');
       return parts.join('');
@@ -1889,13 +1896,25 @@
       //    they don't need to remember direction conventions.
       const rise = ind && ind.higherIsWorse === true ? 'worse' : ind && ind.higherIsWorse === false ? 'better' : 'higher';
       const summary = trendExtremesSentence(ind, labels, vals, field);
+      const isPlaces = ind && ind.source === 'PLACES';
+      // Source-aware framing. ACS: "American Community Survey 5-year
+      // releases". PLACES: "CDC PLACES 2019 and 2024 releases" +
+      // model-refit caveat inline (Brief 3 Amendments B1 + user's
+      // include-PLACES-trends directive).
+      const sourceLine = isPlaces
+        ? `Comparing the <b>2019</b> and <b>2024</b> CDC PLACES releases across ${pts.length} tracts. Both values are re-projected onto 2020 census tract geometry.`
+        : `Comparing the <b>2015–2019</b> and <b>2020–2024</b> American Community Survey 5-year releases across ${pts.length} tracts. The 2015-19 baseline is re-projected onto 2020 census tract geometry.`;
+      const placesCaveat = isPlaces
+        ? ` <span style="color:#a16207;">Use caution: PLACES estimates come from a small-area model that CDC re-fits each release, so some of the change above may reflect model refit rather than real change.</span>`
+        : ``;
       document.getElementById('trendMeta').innerHTML =
-        `Comparing the <b>2015–2019</b> and <b>2020–2024</b> American Community Survey 5-year releases (${pts.length} tracts).` +
+        sourceLine +
         summary +
         ` A positive number means <b>${ind?.label ?? field}</b> went up between the two windows` +
         (ind?.higherIsWorse != null
           ? ` — for this indicator that is <b style="color:${ind.higherIsWorse ? '#dc2626' : '#059669'};">${rise}</b>.`
-          : `.`);
+          : `.`) +
+        placesCaveat;
       if (state.charts.trend) state.charts.trend.destroy();
       const colors = vals.map(v => {
         if (ind?.higherIsWorse == null) return '#112E51';
