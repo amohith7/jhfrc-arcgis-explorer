@@ -215,20 +215,24 @@
       flex-direction: column;
       background: var(--gray-50);
     }
-    .view { display: none; overflow: auto; flex: 1; padding: 0; }
+    .view { display: none; overflow-y: auto; flex: 1; padding: 0; min-height: 0; }
     .view.active { display: flex; flex-direction: column; }
-    /* Overview view */
+    /* Overview view. Chart panel's row is `minmax(340px, auto)` so
+       the county-average bar chart never squeezes below 340px, but
+       CAN grow if extra height is available. When the sum of map
+       (55dvh) + chart (340px+) exceeds the viewport, .view scrolls
+       instead of crushing either. Brief 3 chart-height feedback. */
     .overview-grid {
       display: grid;
       grid-template-columns: 1fr 380px;
-      grid-template-rows: 1fr 260px;
-      height: 100%;
+      grid-template-rows: minmax(420px, 55dvh) minmax(340px, auto);
+      min-height: 100%;
       gap: 10px;
       padding: 10px;
     }
-    #mapView { background: #eef2f7; border-radius: 6px; position: relative; grid-row: 1; grid-column: 1; }
+    #mapView { background: #eef2f7; border-radius: 6px; position: relative; grid-row: 1; grid-column: 1; min-height: 420px; }
     .kpi-panel { background: white; border-radius: 6px; padding: 14px; grid-row: 1; grid-column: 2; overflow-y: auto; }
-    .chart-panel { background: white; border-radius: 6px; padding: 12px 16px; overflow: hidden; display: flex; flex-direction: column; }
+    .chart-panel { background: white; border-radius: 6px; padding: 12px 16px; overflow: hidden; display: flex; flex-direction: column; min-height: 340px; }
     .chart-panel.wide { grid-row: 2; grid-column: 1 / 3; }
     .chart-panel h3, .kpi-panel h3, .analysis-panel h3 {
       margin: 0 0 10px 0; font-size: 12px;
@@ -327,12 +331,17 @@
       border-radius: 4px;
     }
     .analysis-view { flex: 1; min-height: 0; }
-    .analysis-panel { display: flex; flex-direction: column; min-height: 0; }
-    /* Charts that should grow with the panel + browser height */
+    .analysis-panel { display: flex; flex-direction: column; min-height: 340px; }
+    /* Charts that should grow with the panel + browser height. Chart
+       min-height raised from 220px to 320px so complex charts (11-
+       county bar with axis titles + tick labels, 12x12 correlation
+       matrix, 20-bin histogram) don't compress into an unreadable
+       strip. If a viewport is short, .view scrolls. Brief 3
+       chart-height feedback. */
     .chart-box {
       position: relative;
       flex: 1 1 auto;
-      min-height: 220px;
+      min-height: 320px;
       display: flex;
     }
     .chart-box canvas { flex: 1; width: 100% !important; height: 100% !important; }
@@ -1398,18 +1407,31 @@
       // seeing a blank tile until the next filter change.
       if (t.dataset.view === 'overview' && state.mapView) {
         state.mapView.container.style.display = 'block';
-        // Dispatching a resize on window is the least intrusive nudge —
-        // MapView listens for resize + recomputes its size and repaints
-        // without us having to know its internal API. Fall back to
-        // touching a benign property in case the browser drops the
-        // event.
-        try {
-          window.dispatchEvent(new Event('resize'));
-          // Belt-and-braces: touching padding forces the SDK to run
-          // its size-check pipeline immediately (not just on next tick).
-          const pad = state.mapView.padding;
-          state.mapView.padding = { ...pad };
-        } catch (_) { /* best-effort — never crash tab-switch */ }
+        // The previous fix (window resize + padding nudge) wasn't
+        // enough — reported by the user after PR #14 landed. Cause:
+        // while another tab was active, the Overview .view had
+        // display:none, which collapsed the CSS grid inside it and
+        // left the map container at 0x0. When display flips back,
+        // ArcGIS's ResizeObserver doesn't reliably fire until the
+        // browser has laid out the newly-visible container. Wait
+        // two animation frames (one for display flip, one for grid
+        // layout to resolve), then force ArcGIS to redraw by
+        // re-writing the extent via goTo(). goTo re-runs the SDK's
+        // full render pipeline regardless of whether the target
+        // extent actually differs.
+        requestAnimationFrame(() => {
+          requestAnimationFrame(() => {
+            if (!state.mapView) return;
+            try {
+              // Kick the container's ResizeObserver.
+              state.mapView.container.dispatchEvent(new Event('resize'));
+              // Force a full redraw — extent re-write triggers the
+              // render loop even when the values are unchanged.
+              const cur = state.mapView.extent;
+              if (cur) state.mapView.goTo(cur, { animate: false }).catch(() => {});
+            } catch (_) { /* best-effort — never crash tab-switch */ }
+          });
+        });
       }
       if (dirty.has(t.dataset.view)) renderView(t.dataset.view);
       closeSidebarDrawer();
