@@ -40,19 +40,43 @@ DEFAULT_SNIPPET = (
 )
 
 
-def _pick_upload_path() -> Path:
-    """Prefer GeoPackage; fall back to zipped Shapefile."""
+def _pick_upload_path(explicit: str | None = None, prefer: str = "gpkg") -> Path:
+    """Pick which of the built layer artifacts to upload.
+
+    Priority: explicit path > preferred format > fallback format. When
+    overwriting an existing hosted feature layer, AGOL is happiest when
+    the incoming file matches the format the layer was originally
+    published from. Pass --file to override, or --format shp when the
+    default GPKG upload gets a "Job failed" from AGOL's overwrite.
+    """
+    if explicit:
+        p = Path(explicit)
+        if not p.is_absolute():
+            p = DATA_DIR / p
+        if not p.exists():
+            raise SystemExit(f"--file not found: {p}")
+        return p
     gpkg = DATA_DIR / "jhfrc_tracts.gpkg"
-    if gpkg.exists():
-        return gpkg
     shp = DATA_DIR / "jhfrc_tracts.shp"
+    zip_path = DATA_DIR / "jhfrc_tracts.zip"
+    order = [gpkg, zip_path] if prefer == "gpkg" else [zip_path, gpkg]
+    for candidate in order:
+        if candidate.exists():
+            # If we chose "shp" but only the raw .shp is present, zip
+            # it fresh so AGOL accepts it.
+            if candidate == zip_path and not zip_path.exists() and shp.exists():
+                import zipfile
+
+                with zipfile.ZipFile(zip_path, "w", zipfile.ZIP_DEFLATED) as z:
+                    for ext in (".shp", ".shx", ".dbf", ".prj", ".cpg"):
+                        p = shp.with_suffix(ext)
+                        if p.exists():
+                            z.write(p, p.name)
+            return candidate
+    # Zip the shapefile bundle on-demand if that's the only thing left.
     if shp.exists():
-        # AGOL expects a zipped Shapefile bundle.
         import zipfile
 
-        zip_path = DATA_DIR / "jhfrc_tracts.zip"
-        if zip_path.exists():
-            zip_path.unlink()
         with zipfile.ZipFile(zip_path, "w", zipfile.ZIP_DEFLATED) as z:
             for ext in (".shp", ".shx", ".dbf", ".prj", ".cpg"):
                 p = shp.with_suffix(ext)
@@ -87,9 +111,11 @@ def publish(
     tags: list[str] | None = None,
     snippet: str = DEFAULT_SNIPPET,
     overwrite_existing: bool = True,
+    file: str | None = None,
+    prefer_format: str = "gpkg",
 ) -> None:
     tags = tags or DEFAULT_TAGS
-    upload = _pick_upload_path()
+    upload = _pick_upload_path(explicit=file, prefer=prefer_format)
     print(f"Uploading: {upload.name}  ({upload.stat().st_size / 1024:.1f} KB)")
 
     gis = _connect_gis()
@@ -158,13 +184,32 @@ def main(argv=None) -> int:
         action="store_true",
         help="Force a fresh publish even if a matching item exists.",
     )
+    ap.add_argument(
+        "--file",
+        default=None,
+        help="Explicit file to upload (absolute path or relative to data/). "
+        "Bypasses format auto-detection.",
+    )
+    ap.add_argument(
+        "--format",
+        dest="prefer_format",
+        default="gpkg",
+        choices=("gpkg", "shp"),
+        help="Preferred format when auto-picking (default: gpkg). Try 'shp' "
+        "if 'Job failed' errors persist on overwrite — AGOL is most "
+        "reliable when the incoming format matches the layer's original.",
+    )
     args = ap.parse_args(argv)
 
     tags = list(DEFAULT_TAGS)
     if args.tag:
         tags.extend(args.tag)
     publish(
-        title=args.title, tags=tags, overwrite_existing=not args.no_overwrite,
+        title=args.title,
+        tags=tags,
+        overwrite_existing=not args.no_overwrite,
+        file=args.file,
+        prefer_format=args.prefer_format,
     )
     return 0
 

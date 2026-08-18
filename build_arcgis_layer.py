@@ -188,6 +188,14 @@ def wide_pivot(long_df: "pd.DataFrame") -> "pd.DataFrame":  # type: ignore  # no
         columns={c: f"{c}_supp" for c in supp.columns if c not in keep_cols}
     )
     wide = wide.merge(supp, on=keep_cols, how="left")
+    # AGOL's hosted feature layer schema does not accept the pandas bool
+    # dtype — publish jobs fail silently in AGOL's job runner when any
+    # column has type bool. Convert every _supp column to nullable int8
+    # (0 / 1 / NA) so the schema is portable. Keeps the semantic value
+    # while making the file publishable.
+    supp_cols = [c for c in wide.columns if c.endswith("_supp")]
+    for c in supp_cols:
+        wide[c] = wide[c].astype("Int8")
     return wide
 
 
