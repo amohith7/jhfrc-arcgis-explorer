@@ -123,6 +123,28 @@ SHAPEFILE_FIELD_ALIASES = {
     "foreign_born": "foreign",
     "foreign_born_d5": "foreign_d5",
     "foreign_born_supp": "frgn_supp",
+    # The <indicator>_county / _state / _us fan-out would blow the
+    # 10-char Shapefile field limit for the longer short_ids. Alias
+    # them to shipped-friendly names; GPKG/GeoJSON keep the full
+    # descriptive form.
+    "foreign_born_county": "frgn_cnty",
+    "foreign_born_state": "frgn_st",
+    "foreign_born_us": "frgn_us",
+    "hh_pubasst_county": "hhpb_cnty",
+    "hh_pubasst_state": "hhpb_st",
+    "hh_pubasst_us": "hhpb_us",
+    "edu_posths_county": "edpt_cnty",
+    "edu_posths_state": "edpt_st",
+    "edu_posths_us": "edpt_us",
+    "housing_old_county": "hous_cnty",
+    "housing_old_state": "hous_st",
+    "housing_old_us": "hous_us",
+    "live_alon_65_county": "la65_cnty",
+    "live_alon_65_state": "la65_st",
+    "live_alon_65_us": "la65_us",
+    "private_ins_county": "prin_cnty",
+    "private_ins_state": "prin_st",
+    "private_ins_us": "prin_us",
 }
 
 
@@ -195,6 +217,23 @@ def wide_pivot(long_df: "pd.DataFrame") -> "pd.DataFrame":  # type: ignore  # no
         columns={c: f"{c}_supp" for c in supp.columns if c not in keep_cols}
     )
     wide = wide.merge(supp, on=keep_cols, how="left")
+    # Add published county / state / US benchmark values per indicator
+    # (short_id + "_county" / "_state" / "_us"). Sourced from the
+    # community-profiles XML's <CountyValue>/<StateValue>/<USValue>
+    # per Indicator block -- these are the authoritative published
+    # numbers, not derived from tract aggregation. Task #118.
+    for src_col, suffix in (
+        ("county_avg", "_county"),
+        ("state_avg", "_state"),
+        ("us_avg", "_us"),
+    ):
+        bench = hl.pivot_table(
+            index=keep_cols, columns="short", values=src_col, aggfunc="first",
+        ).reset_index()
+        bench = bench.rename(
+            columns={c: f"{c}{suffix}" for c in bench.columns if c not in keep_cols}
+        )
+        wide = wide.merge(bench, on=keep_cols, how="left")
     return wide
 
 
