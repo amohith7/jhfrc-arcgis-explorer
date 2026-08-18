@@ -114,9 +114,16 @@ HEADLINE_INDICATORS: list[tuple[str, str]] = [
     ("black", "Black / African American (%)"),
     ("white", "White (%)"),
     ("asian", "Asian (%)"),
-    ("foreign", "Foreign Born Population (%)"),
+    ("foreign_born", "Foreign Born Population (%)"),
     ("lang_span", "Spanish Speakers (Age 5+) (%)"),
 ]
+
+
+SHAPEFILE_FIELD_ALIASES = {
+    "foreign_born": "foreign",
+    "foreign_born_d5": "foreign_d5",
+    "foreign_born_supp": "frgn_supp",
+}
 
 
 def load_rollout() -> "pd.DataFrame":  # type: ignore  # noqa: F821
@@ -225,7 +232,8 @@ def emit_arcgis_layer(formats: list[str] = ["gpkg", "shp", "geojson"],) -> None:
         # Shapefile has a 10-char field name limit; our headline short_ids
         # are all <=10 chars so this is safe.
         p = DATA_DIR / "jhfrc_tracts.shp"
-        joined.to_file(p, driver="ESRI Shapefile")
+        shp_joined = joined.rename(columns=SHAPEFILE_FIELD_ALIASES)
+        shp_joined.to_file(p, driver="ESRI Shapefile")
         print(f"  wrote {p}  (+ .shx .dbf .prj .cpg)")
 
 

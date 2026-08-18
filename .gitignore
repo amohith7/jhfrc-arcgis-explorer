@@ -22,6 +22,7 @@ data/*.cpg
 data/*.gpkg
 data/*.geojson
 data/*.zip
+data/backup*/
 
 # Python
 __pycache__/
