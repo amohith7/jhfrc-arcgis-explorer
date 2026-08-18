@@ -826,13 +826,15 @@
       require([
         'esri/Map','esri/views/MapView','esri/layers/FeatureLayer',
         'esri/smartMapping/renderers/color',
+        'esri/smartMapping/symbology/color',
         'esri/widgets/BasemapGallery','esri/widgets/Expand',
         'esri/widgets/Legend','esri/widgets/Home','esri/widgets/Search',
         'esri/widgets/ScaleBar','esri/widgets/Fullscreen'
       ], (Map, MapView, FeatureLayer, colorRendererCreator,
+          colorSchemes,
           BasemapGallery, Expand, Legend, Home, Search, ScaleBar, Fullscreen) => {
         try {
-          mapModules = { Map, MapView, FeatureLayer, colorRendererCreator };
+          mapModules = { Map, MapView, FeatureLayer, colorRendererCreator, colorSchemes };
           const layer = new FeatureLayer({
             url: LAYER_URL, outFields: ['*'],
             popupTemplate: {
@@ -995,12 +997,31 @@
       // "current" mode we use the currently-filtered view (default AGOL
       // behavior). Regional is the default because filter-toggling
       // with recomputed breaks silently misleads.
+      // Look up the ColorScheme object by name via the symbology/color
+      // module. Passing { name: 'Red 3' } directly to createClassBreaksRenderer
+      // was throwing "Cannot read properties of undefined (reading 'map')"
+      // inside cloneScheme in SDK 4.30 — the renderer expects a full scheme
+      // object, not a partial name reference. If lookup fails (unknown
+      // scheme name), we omit colorScheme entirely and let the SDK pick a
+      // default; the manual quantile fallback below still catches any
+      // remaining failure.
+      let schemeObj = null;
+      try {
+        if (mapModules.colorSchemes && mapModules.colorSchemes.getSchemeByName) {
+          schemeObj = mapModules.colorSchemes.getSchemeByName({
+            basemap: state.mapView.map.basemap,
+            geometryType: 'polygon',
+            theme: 'high-to-low',
+            name: colorScheme,
+          });
+        }
+      } catch (e) { /* fall through to default scheme */ }
       const rendererParams = {
         layer: state.layer, view: state.mapView, field,
         classificationMethod: 'quantile', numClasses: 5,
-        colorScheme: { name: colorScheme },
         legendOptions: { title: ind ? ind.label : field }
       };
+      if (schemeObj) rendererParams.colorScheme = schemeObj;
       let smartMappingApplied = false;
       if (scaleMode === 'regional') {
         // Force renderer to consider the entire dataset by temporarily
