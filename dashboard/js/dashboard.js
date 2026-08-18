@@ -719,6 +719,33 @@
               ? `layer.loaded=${state.layer.loaded}`
               : 'layer=null';
             console.log(`[map] tab-return: container=${c.offsetWidth}x${c.offsetHeight} ready=${state.mapView.ready} suspended=${state.mapView.suspended} ${canvasInfo} ${layerInfo}`);
+            // Parent chain diag — find which ancestor is 295px wide.
+            const chain = [];
+            let el = c.parentElement, depth = 0;
+            while (el && depth < 8) {
+              const tag = el.tagName.toLowerCase();
+              const id = el.id ? '#' + el.id : '';
+              const cls = el.className && typeof el.className === 'string'
+                ? '.' + el.className.split(/\s+/).slice(0, 2).join('.')
+                : '';
+              const r = el.getBoundingClientRect();
+              chain.push(`${tag}${id}${cls}=${Math.round(r.width)}x${Math.round(r.height)}`);
+              el = el.parentElement;
+              depth++;
+            }
+            console.log('[map] ancestors:', chain.join('  <  '));
+            console.log('[map] viewport:', window.innerWidth + 'x' + window.innerHeight,
+                        'devicePixelRatio:', window.devicePixelRatio);
+            // Also grab the resolved grid template of .overview-grid
+            const grid = document.querySelector('.overview-grid');
+            if (grid) {
+              const gs = getComputedStyle(grid);
+              console.log('[map] .overview-grid computed:',
+                          'display=' + gs.display,
+                          'grid-template-columns=' + gs.gridTemplateColumns,
+                          'grid-template-rows=' + gs.gridTemplateRows,
+                          'rect=' + Math.round(grid.getBoundingClientRect().width) + 'x' + Math.round(grid.getBoundingClientRect().height));
+            }
             // 1 + 2: kick every size observer we can reach.
             c.dispatchEvent(new Event('resize'));
             window.dispatchEvent(new Event('resize'));
