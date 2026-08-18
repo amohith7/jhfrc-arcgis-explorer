@@ -139,7 +139,7 @@
       return list;
     }
 
-    const LAYER_URL = 'https://services.arcgis.com/UnTXoPXBYERF0OH6/arcgis/rest/services/jhfrc_tracts_v5/FeatureServer/0';
+    const LAYER_URL = 'https://services.arcgis.com/UnTXoPXBYERF0OH6/arcgis/rest/services/jhfrc_tracts_v6/FeatureServer/0';
 
     const state = {
       features: [], counties: new Set(),
@@ -855,18 +855,38 @@
         'source_estimate',         // ACS tract estimates are as-published
       ];
     }
-    // County row — aggregation of tract values (unweighted mean today;
-    // population-weighted when E1 lands). estimate_basis reflects that.
+    // Task #118 — retire the unweighted-mean county number. The
+    // authoritative value is the published <CountyValue> from the
+    // Community Profiles XML, plumbed through as
+    // <indicator.id>_county on the layer. All tracts in a county
+    // carry the same value; read from the first available.
+    // Universe-weighted tract-aggregation fallback is deferred to
+    // #123 — for now, missing published value renders blank and
+    // estimate_basis records "blank".
+    function _countyValue(countyName, ind, tracts) {
+      const field = ind.id + '_county';
+      const hasField = !state.presentFields || state.presentFields.has(field);
+      if (!hasField || !tracts || !tracts.length) {
+        return { value: null, basis: 'blank' };
+      }
+      for (const t of tracts) {
+        const v = t[field];
+        if (v != null && !isNaN(v)) {
+          return { value: v, basis: 'published_source' };
+        }
+      }
+      return { value: null, basis: 'blank' };
+    }
+
     function _b9RowForCounty(countyName, ind, tracts) {
       const suppField = ind.id + '_supp';
-      const vals = tracts.map(t => t[ind.id]).filter(v => v != null && !isNaN(v));
-      const mean = vals.length ? vals.reduce((a, b) => a + b, 0) / vals.length : '';
       const suppN = state.presentFields && state.presentFields.has(suppField)
         ? tracts.filter(t => !!t[suppField]).length : '';
       const suppFlag = (suppN !== '' && suppN > 0) ? 'true' : 'false';
       const countyFips = (tracts[0] && tracts[0].county_fips)
         || (tracts[0] && (tracts[0].tract_geoid || '').slice(0, 5))
         || '';
+      const { value, basis } = _countyValue(countyName, ind, tracts);
       return [
         'county',
         countyFips,
@@ -876,7 +896,7 @@
         ind.id,
         ind.label,
         ind.unit ?? '',
-        mean,
+        value == null ? '' : value,
         '',                        // universe (Phase E1)
         '',                        // estimated_count (Phase E1 + F3)
         '',                        // moe
@@ -889,10 +909,7 @@
         suppFlag,
         ind.source ?? '',
         _sourceVintage(ind),
-        // Amendment B3: label aggregations distinctly from published
-        // source estimates. Until we join FFIEC/Census county files, our
-        // county rows are tract aggregations.
-        'aggregated_from_tracts',
+        basis,
       ];
     }
     document.getElementById('rankingCsvBtn')?.addEventListener('click', () => {
@@ -1694,24 +1711,20 @@
       const selected = [...selectedCounties()].sort();
       const header = document.getElementById('compareHeaderRow');
       const tbody = document.querySelector('#compareTable tbody');
-      // Rebuild header: Indicator | <County1> | <County2> | ... | Best
-      // The per-county number in each cell is the UNWEIGHTED mean of
-      // that county's tract values. Weighting by tract population needs
-      // a total_pop field that isn't published yet (Brief 2 Phase C1).
-      // Labeling it in the header keeps the column honest until then.
+      // Task #118 — each cell is now the published <CountyValue>
+      // from the Community Profiles XML (via <indicator>_county on
+      // the layer), NOT an unweighted mean of tract rates. When the
+      // published value is unavailable the cell is blank ("—");
+      // universe-weighted aggregation fallback is deferred to #123.
       header.innerHTML = '<th>Indicator</th>' +
-        selected.map(c => `<th class="num" title="Unweighted mean of tract values">${c}<br><span style="font-weight:400; font-size:10px; color:#9ca3af;">unweighted mean</span></th>`).join('') +
-        '<th class="num" title="County with the most-favorable unweighted mean, given the indicator direction">Best</th>';
+        selected.map(c => `<th class="num" title="Published county estimate from the Community Profiles source XML">${c}<br><span style="font-weight:400; font-size:10px; color:#9ca3af;">published county estimate</span></th>`).join('') +
+        '<th class="num" title="County with the most-favorable published value, given the indicator direction. Counties without a published value are excluded from the ranking.">Best</th>';
       tbody.innerHTML = '';
       if (selected.length === 0) {
         tbody.innerHTML = '<tr><td colspan="99" style="color:#6b7280; padding:16px;">' +
           'Pick at least one county to compare.</td></tr>';
         return;
       }
-      const avg = (rows, k) => {
-        const v = rows.map(r => r[k]).filter(x => x != null && !isNaN(x));
-        return v.length ? v.reduce((x,y) => x + y, 0) / v.length : null;
-      };
       const byCounty = {};
       for (const c of selected) {
         byCounty[c] = state.features.filter(f => f.county_name === c);
@@ -1726,8 +1739,11 @@
         : INDICATORS
       ).filter(i => _availableIds.size === 0 || _availableIds.has(i.id));
       for (const ind of indicatorList) {
-        const values = selected.map(c => avg(byCounty[c], ind.id));
-        // Best (favorable) county for this indicator
+        // Published county estimate per selected county
+        const cells = selected.map(c => _countyValue(c, ind, byCounty[c]));
+        const values = cells.map(o => o.value);
+        // Best (favorable) county for this indicator — only among
+        // counties with a published value; a blank cell can't win.
         let bestName = '—';
         if (ind.higherIsWorse != null) {
           const nonNull = values
@@ -1741,9 +1757,11 @@
           }
         }
         const tr = document.createElement('tr');
-        const cells = values.map(v => `<td class="num">${fmt(v, ind)}</td>`).join('');
+        const cellsHtml = cells.map(({ value }) =>
+          `<td class="num">${value == null ? '<span style="color:#9ca3af;" title="No published county estimate available for this indicator.">&mdash;</span>' : fmt(value, ind)}</td>`
+        ).join('');
         const bestCls = bestName !== '—' ? 'better' : 'same';
-        tr.innerHTML = `<td>${ind.label}</td>${cells}<td class="num ${bestCls}">${bestName}</td>`;
+        tr.innerHTML = `<td>${ind.label}</td>${cellsHtml}<td class="num ${bestCls}">${bestName}</td>`;
         tbody.appendChild(tr);
       }
     }

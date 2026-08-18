@@ -159,7 +159,7 @@
           <h3>Data source</h3>
           <div class="footnote">
             Live from ArcGIS Feature Layer<br>
-            <a href="https://services.arcgis.com/UnTXoPXBYERF0OH6/arcgis/rest/services/jhfrc_tracts_v5/FeatureServer/0" target="_blank">jhfrc_tracts_v5</a>
+            <a href="https://services.arcgis.com/UnTXoPXBYERF0OH6/arcgis/rest/services/jhfrc_tracts_v6/FeatureServer/0" target="_blank">jhfrc_tracts_v6</a>
             <div id="coverageNote" style="margin-top:6px; color:#4b5563;"></div>
           </div>
         </div>
@@ -224,11 +224,15 @@
                 in the left sidebar. Each selected county becomes a
                 column. The <b>Best</b> column highlights the county
                 with the most favorable value for that indicator (only
-                for indicators with a defined direction). Numbers shown
-                are the <b>unweighted mean</b> of tract values in each
-                county. This can differ from a population-weighted
-                average when tracts within a county have very
-                different populations.
+                for indicators with a defined direction). Numbers
+                shown are the <b>published county estimate</b> from the
+                Community Profiles source (ACS 2020&#8211;2024 or CDC
+                PLACES 2024, per indicator). A blank cell means no
+                published county estimate is available for that
+                indicator; universe-weighted tract aggregation is a
+                future enhancement (not the same as an unweighted
+                mean, which would misrepresent counties whose tracts
+                differ substantially in population).
               </div>
               <div class="compare-scroll">
                 <table class="compare-table" id="compareTable">
