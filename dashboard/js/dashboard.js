@@ -139,7 +139,7 @@
       return list;
     }
 
-    const LAYER_URL = 'https://services.arcgis.com/UnTXoPXBYERF0OH6/arcgis/rest/services/jhfrc_tracts_v5/FeatureServer/0';
+    const LAYER_URL = 'https://services.arcgis.com/UnTXoPXBYERF0OH6/arcgis/rest/services/jhfrc_tracts_v6/FeatureServer/0';
 
     const state = {
       features: [], counties: new Set(),
