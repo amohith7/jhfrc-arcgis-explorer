@@ -150,8 +150,18 @@ def publish(
             print(f"  Copied artifact for upload: {upload.name} -> {upload_name}")
         added = gis.content.add(item_props, str(upload_tmp))
         print(f"  Uploaded item: {added.id}  (name: {upload_name})")
-        publish_params = {"targetSR": {"wkid": target_sr}}
-        print(f"  Publishing with targetSR={target_sr} (matches source GPKG)")
+        # Passing publish_parameters DISABLES AGOL's default service-
+        # name derivation, so if we omit `name` the publish request
+        # sends an empty string and AGOL errors with
+        # "Service name '' already exists". Pass the slug explicitly.
+        publish_params = {
+            "name": safe,
+            "targetSR": {"wkid": target_sr},
+        }
+        print(
+            f"  Publishing service '{safe}' with targetSR={target_sr} "
+            "(matches source GPKG)"
+        )
         published = added.publish(publish_parameters=publish_params)
         print(f"  Published feature service: {published.id}")
 
