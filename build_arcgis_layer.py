@@ -114,7 +114,10 @@ HEADLINE_INDICATORS: list[tuple[str, str]] = [
     ("black", "Black / African American (%)"),
     ("white", "White (%)"),
     ("asian", "Asian (%)"),
-    ("foreign", "Foreign Born Population (%)"),
+    # "foreign" is a SQL reserved word (FOREIGN KEY); AGOL's append/
+    # publish path builds unquoted INSERT SQL and fails with
+    # "Invalid SQL syntax near 'foreign'". Use foreign_born instead.
+    ("foreign_born", "Foreign Born Population (%)"),
     ("lang_span", "Spanish Speakers (Age 5+) (%)"),
 ]
 
@@ -228,6 +231,76 @@ def emit_arcgis_layer(formats: list[str] = ["gpkg", "shp", "geojson"],) -> None:
             f"percent signs, spacing):\n  - " + "\n  - ".join(missing)
         )
     print(f"Coverage OK: all {len(expected)} HEADLINE_INDICATORS present in the pivot.")
+
+    # SQL-reserved-word check. AGOL's publish/append pipeline builds
+    # unquoted INSERT SQL, so any column whose name is a SQL reserved
+    # word fails with "Invalid SQL syntax near '<name>'". This blew up
+    # the first republish attempt on the column literally named
+    # "foreign". Fail early with a clear message instead.
+    SQL_RESERVED = {
+        "order",
+        "group",
+        "select",
+        "where",
+        "from",
+        "join",
+        "key",
+        "index",
+        "table",
+        "view",
+        "column",
+        "row",
+        "null",
+        "default",
+        "check",
+        "unique",
+        "primary",
+        "foreign",
+        "references",
+        "grant",
+        "revoke",
+        "case",
+        "when",
+        "then",
+        "else",
+        "end",
+        "as",
+        "on",
+        "and",
+        "or",
+        "not",
+        "in",
+        "is",
+        "like",
+        "between",
+        "distinct",
+        "having",
+        "limit",
+        "offset",
+        "union",
+        "cross",
+        "outer",
+        "inner",
+        "left",
+        "right",
+        "full",
+        "using",
+        "asc",
+        "desc",
+        "into",
+    }
+    hits = sorted(
+        c
+        for c in wide.columns
+        if c.lower() in SQL_RESERVED
+        or c.lower().rstrip("_d5").rstrip("_supp") in SQL_RESERVED
+    )
+    if hits:
+        raise RuntimeError(
+            "SQL-reserved column names present — AGOL append/publish will "
+            f"fail with 'Invalid SQL syntax near <name>'. Rename these in "
+            f"HEADLINE_INDICATORS: {hits}"
+        )
 
     joined = tracts.merge(wide, on="tract_geoid", how="inner")
     print(f"Joined to polygons: {len(joined):,} tracts")
