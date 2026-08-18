@@ -134,14 +134,21 @@ def publish(
             "snippet": snippet,
         }
         # AGOL rejects (409) if an item with the same *filename* already
-        # exists in this user's content. Derive a unique upload name
-        # from the title so re-runs against the same GPKG land as
-        # distinct items (v3, v4, v5 all coexist without collision).
+        # exists in this user's content. gis.content.add()'s filename
+        # kwarg is ignored by the deprecated path, so we physically COPY
+        # the artifact to a title-derived filename and upload the copy.
+        # v3/v4/v5 (or any future retitle) can coexist without renaming
+        # the canonical local artifact.
         import re as _re
+        import shutil as _shutil
 
         safe = _re.sub(r"[^A-Za-z0-9]+", "_", title).strip("_").lower()
         upload_name = f"{safe}{upload.suffix}"
-        added = gis.content.add(item_props, str(upload), filename=upload_name)
+        upload_tmp = upload.with_name(upload_name)
+        if upload_tmp.resolve() != upload.resolve():
+            _shutil.copy2(str(upload), str(upload_tmp))
+            print(f"  Copied artifact for upload: {upload.name} -> {upload_name}")
+        added = gis.content.add(item_props, str(upload_tmp))
         print(f"  Uploaded item: {added.id}  (name: {upload_name})")
         publish_params = {"targetSR": {"wkid": target_sr}}
         print(f"  Publishing with targetSR={target_sr} (matches source GPKG)")
