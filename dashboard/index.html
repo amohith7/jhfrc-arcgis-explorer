@@ -129,6 +129,11 @@
     .rank-row .rank-val { font-weight: 600; color: var(--navy); font-family: "SF Mono", Consolas, monospace; font-size: 12px; }
     .rank-row.max-tract { background: rgba(220,38,38,0.06); }
     .rank-row.min-tract { background: rgba(5,150,105,0.06); }
+    /* Same shading rules for the full ranking table on the Ranking
+       tab. The classes are applied in renderRanking() ONLY when the
+       indicator has a defined direction (higherIsWorse != null). */
+    #rankingTable tbody tr.worst-tract { background: rgba(220,38,38,0.08); }
+    #rankingTable tbody tr.best-tract  { background: rgba(5,150,105,0.08); }
     /* Sidebar controls */
     .section { margin-bottom: 20px; }
     .section h3 { margin: 0 0 6px 0; font-size: 11px; color: var(--gray-600); font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; }
@@ -299,6 +304,14 @@
           <div class="footnote" style="margin-top:6px;">Auto picks red for "higher is worse", green for "higher is better", blue when neutral.</div>
         </div>
         <div class="section">
+          <h3>Color Scale</h3>
+          <select id="scaleModeSelect">
+            <option value="regional" selected>Regional (fixed across selections)</option>
+            <option value="current">Current selection</option>
+          </select>
+          <div class="footnote" style="margin-top:6px;">Regional keeps class breaks constant across the full 11-county distribution so colors are comparable when you toggle counties. Current recomputes breaks against just the visible tracts (matches ArcGIS default).</div>
+        </div>
+        <div class="section">
           <h3>Counties</h3>
           <div class="county-actions">
             <button id="selectAll">All</button>
@@ -405,7 +418,7 @@
           <div class="analysis-view">
             <div class="analysis-panel">
               <h3>All tracts ranked — selected indicator</h3>
-              <div class="footnote" style="margin:4px 0 12px 0;">Sorted high to low across visible counties. Row shading: red = worst 10%, green = best 10% (relative to displayed distribution).</div>
+              <div class="footnote" style="margin:4px 0 12px 0;">Sorted high to low across visible counties. Row shading: red highlights the 10% of tracts with the least favorable value for this indicator, green highlights the 10% with the most favorable, using the indicator's "higher is worse" or "higher is better" orientation. Indicators with no defined direction (median age, race breakdown, etc.) are shown unshaded.</div>
               <div class="compare-scroll">
                 <table class="compare-table" id="rankingTable">
                   <thead><tr><th>#</th><th>Tract</th><th>County</th><th class="num">Value</th><th class="num">5-yr Δ</th></tr></thead>
@@ -423,79 +436,83 @@
     // ─────────────────────────────────────────────────────────────────────
     // Configuration
     // 61 indicators mirrored from build_arcgis_layer.py HEADLINE_INDICATORS.
-    // Each with a plain-English label, a domain (for the dropdown groups),
-    // and higherIsWorse orientation used by the Compare + Trends views to
-    // color "better" vs "worse" outcomes.
+    // Fields per entry:
+    //   id            — column name on the Feature Layer
+    //   label         — human-readable name shown throughout UI
+    //   domain        — dropdown group
+    //   higherIsWorse — true/false/null; drives shading + best-of picking
+    //   unit          — 'percent' | 'currency' | 'index' | 'years' | 'count'
+    //   decimals      — decimal places for the value + delta formatters
     const INDICATORS = [
       // Economic
-      { id: 'pov_below',   label: 'Below Poverty Line (%)',                  domain: 'Economic',      higherIsWorse: true  },
-      { id: 'mhi',         label: 'Median Household Income ($)',             domain: 'Economic',      higherIsWorse: false },
-      { id: 'mpci',        label: 'Mean Per Capita Income ($)',              domain: 'Economic',      higherIsWorse: false },
-      { id: 'gini',        label: 'Gini Index (income inequality)',          domain: 'Economic',      higherIsWorse: true  },
-      { id: 'emp_adults',  label: 'Employed Adults (%)',                     domain: 'Economic',      higherIsWorse: false },
-      { id: 'not_labor',   label: 'Not in Labor Force (%)',                  domain: 'Economic',      higherIsWorse: true  },
-      { id: 'hh_snap',     label: 'Households Receiving SNAP (%)',           domain: 'Economic',      higherIsWorse: true  },
-      { id: 'hh_pubasst',  label: 'Households Receiving Public Assistance (%)', domain: 'Economic',   higherIsWorse: true  },
+      { id: 'pov_below',   label: 'Below Poverty Line (%)',                  domain: 'Economic',      higherIsWorse: true,  unit: 'percent',  decimals: 1 },
+      { id: 'mhi',         label: 'Median Household Income ($)',             domain: 'Economic',      higherIsWorse: false, unit: 'currency', decimals: 0 },
+      { id: 'mpci',        label: 'Mean Per Capita Income ($)',              domain: 'Economic',      higherIsWorse: false, unit: 'currency', decimals: 0 },
+      { id: 'gini',        label: 'Gini Index (income inequality)',          domain: 'Economic',      higherIsWorse: true,  unit: 'index',    decimals: 3 },
+      { id: 'emp_adults',  label: 'Employed Adults (%)',                     domain: 'Economic',      higherIsWorse: false, unit: 'percent',  decimals: 1 },
+      { id: 'not_labor',   label: 'Not in Labor Force (%)',                  domain: 'Economic',      higherIsWorse: true,  unit: 'percent',  decimals: 1 },
+      { id: 'hh_snap',     label: 'Households Receiving SNAP (%)',           domain: 'Economic',      higherIsWorse: true,  unit: 'percent',  decimals: 1 },
+      { id: 'hh_pubasst',  label: 'Households Receiving Public Assistance (%)', domain: 'Economic',   higherIsWorse: true,  unit: 'percent',  decimals: 1 },
       // Education
-      { id: 'edu_lths',    label: 'Less than High School Education (%)',     domain: 'Education',     higherIsWorse: true  },
-      { id: 'edu_posths',  label: 'Any Post-High School Education (%)',      domain: 'Education',     higherIsWorse: false },
-      { id: 'edu_assoc',   label: "Associate's Degree (%)",                  domain: 'Education',     higherIsWorse: false },
-      { id: 'edu_ba',      label: "Bachelor's Degree (%)",                   domain: 'Education',     higherIsWorse: false },
-      { id: 'edu_grad',    label: 'Graduate / Professional Degree (%)',      domain: 'Education',     higherIsWorse: false },
-      { id: 'youth_dis',   label: 'Youth Disconnection — Teens 16-19 (%)',   domain: 'Education',     higherIsWorse: true  },
+      { id: 'edu_lths',    label: 'Less than High School Education (%)',     domain: 'Education',     higherIsWorse: true,  unit: 'percent',  decimals: 1 },
+      { id: 'edu_posths',  label: 'Any Post-High School Education (%)',      domain: 'Education',     higherIsWorse: false, unit: 'percent',  decimals: 1 },
+      { id: 'edu_assoc',   label: "Associate's Degree (%)",                  domain: 'Education',     higherIsWorse: false, unit: 'percent',  decimals: 1 },
+      { id: 'edu_ba',      label: "Bachelor's Degree (%)",                   domain: 'Education',     higherIsWorse: false, unit: 'percent',  decimals: 1 },
+      { id: 'edu_grad',    label: 'Graduate / Professional Degree (%)',      domain: 'Education',     higherIsWorse: false, unit: 'percent',  decimals: 1 },
+      { id: 'youth_dis',   label: 'Youth Disconnection — Teens 16-19 (%)',   domain: 'Education',     higherIsWorse: true,  unit: 'percent',  decimals: 1 },
       // Healthcare — coverage
-      { id: 'no_insur',    label: 'Uninsured, Ages 18-64 (%)',               domain: 'Healthcare',    higherIsWorse: true  },
-      { id: 'private_ins', label: 'Private Insurance (All Ages) (%)',        domain: 'Healthcare',    higherIsWorse: false },
-      { id: 'medicaid',    label: 'Medicaid Coverage (%)',                   domain: 'Healthcare',    higherIsWorse: null  },
-      { id: 'any_disab',   label: 'Any Disability (%)',                      domain: 'Healthcare',    higherIsWorse: true  },
+      { id: 'no_insur',    label: 'Uninsured, Ages 18-64 (%)',               domain: 'Healthcare',    higherIsWorse: true,  unit: 'percent',  decimals: 1 },
+      { id: 'private_ins', label: 'Private Insurance (All Ages) (%)',        domain: 'Healthcare',    higherIsWorse: false, unit: 'percent',  decimals: 1 },
+      { id: 'medicaid',    label: 'Medicaid Coverage (%)',                   domain: 'Healthcare',    higherIsWorse: null,  unit: 'percent',  decimals: 1 },
+      { id: 'any_disab',   label: 'Any Disability (%)',                      domain: 'Healthcare',    higherIsWorse: true,  unit: 'percent',  decimals: 1 },
       // Healthcare — conditions
-      { id: 'hh_diab',     label: 'Diabetes (%)',                            domain: 'Healthcare',    higherIsWorse: true  },
-      { id: 'hh_asthma',   label: 'Asthma (%)',                              domain: 'Healthcare',    higherIsWorse: true  },
-      { id: 'hh_heart',    label: 'Coronary Heart Disease (%)',              domain: 'Healthcare',    higherIsWorse: true  },
-      { id: 'hh_bp',       label: 'High Blood Pressure (%)',                 domain: 'Healthcare',    higherIsWorse: true  },
-      { id: 'hh_bpmed',    label: 'Taking Blood Pressure Medication (%)',    domain: 'Healthcare',    higherIsWorse: null  },
-      { id: 'hh_chol',     label: 'High Cholesterol (%)',                    domain: 'Healthcare',    higherIsWorse: true  },
-      { id: 'hh_arthr',    label: 'Arthritis (%)',                           domain: 'Healthcare',    higherIsWorse: true  },
-      { id: 'hh_copd',     label: 'COPD (%)',                                domain: 'Healthcare',    higherIsWorse: true  },
-      { id: 'hh_stroke',   label: 'Stroke (%)',                              domain: 'Healthcare',    higherIsWorse: true  },
+      { id: 'hh_diab',     label: 'Diabetes (%)',                            domain: 'Healthcare',    higherIsWorse: true,  unit: 'percent',  decimals: 1 },
+      { id: 'hh_asthma',   label: 'Asthma (%)',                              domain: 'Healthcare',    higherIsWorse: true,  unit: 'percent',  decimals: 1 },
+      { id: 'hh_heart',    label: 'Coronary Heart Disease (%)',              domain: 'Healthcare',    higherIsWorse: true,  unit: 'percent',  decimals: 1 },
+      { id: 'hh_bp',       label: 'High Blood Pressure (%)',                 domain: 'Healthcare',    higherIsWorse: true,  unit: 'percent',  decimals: 1 },
+      { id: 'hh_bpmed',    label: 'Taking Blood Pressure Medication (%)',    domain: 'Healthcare',    higherIsWorse: null,  unit: 'percent',  decimals: 1 },
+      { id: 'hh_chol',     label: 'High Cholesterol (%)',                    domain: 'Healthcare',    higherIsWorse: true,  unit: 'percent',  decimals: 1 },
+      { id: 'hh_arthr',    label: 'Arthritis (%)',                           domain: 'Healthcare',    higherIsWorse: true,  unit: 'percent',  decimals: 1 },
+      { id: 'hh_copd',     label: 'COPD (%)',                                domain: 'Healthcare',    higherIsWorse: true,  unit: 'percent',  decimals: 1 },
+      { id: 'hh_stroke',   label: 'Stroke (%)',                              domain: 'Healthcare',    higherIsWorse: true,  unit: 'percent',  decimals: 1 },
       // Healthcare — self-reported + behaviors
-      { id: 'ph_poor14',   label: 'Poor Physical Health ≥14 Days (%)',       domain: 'Healthcare',    higherIsWorse: true  },
-      { id: 'mh_poor14',   label: 'Poor Mental Health ≥14 Days (%)',         domain: 'Healthcare',    higherIsWorse: true  },
-      { id: 'fair_hlth',   label: 'Fair or Poor Self-Reported Health (%)',   domain: 'Healthcare',    higherIsWorse: true  },
-      { id: 'smoke',       label: 'Smoking (%)',                             domain: 'Healthcare',    higherIsWorse: true  },
-      { id: 'binge',       label: 'Binge Drinking (%)',                      domain: 'Healthcare',    higherIsWorse: true  },
-      { id: 'no_activ',    label: 'No Leisure-Time Physical Activity (%)',   domain: 'Healthcare',    higherIsWorse: true  },
-      { id: 'obesity',     label: 'Obesity (%)',                             domain: 'Healthcare',    higherIsWorse: true  },
-      { id: 'sleep_lt7',   label: 'Sleeping Less than 7 Hours (%)',          domain: 'Healthcare',    higherIsWorse: true  },
+      { id: 'ph_poor14',   label: 'Poor Physical Health ≥14 Days (%)',       domain: 'Healthcare',    higherIsWorse: true,  unit: 'percent',  decimals: 1 },
+      { id: 'mh_poor14',   label: 'Poor Mental Health ≥14 Days (%)',         domain: 'Healthcare',    higherIsWorse: true,  unit: 'percent',  decimals: 1 },
+      { id: 'fair_hlth',   label: 'Fair or Poor Self-Reported Health (%)',   domain: 'Healthcare',    higherIsWorse: true,  unit: 'percent',  decimals: 1 },
+      { id: 'smoke',       label: 'Smoking (%)',                             domain: 'Healthcare',    higherIsWorse: true,  unit: 'percent',  decimals: 1 },
+      { id: 'binge',       label: 'Binge Drinking (%)',                      domain: 'Healthcare',    higherIsWorse: true,  unit: 'percent',  decimals: 1 },
+      { id: 'no_activ',    label: 'No Leisure-Time Physical Activity (%)',   domain: 'Healthcare',    higherIsWorse: true,  unit: 'percent',  decimals: 1 },
+      { id: 'obesity',     label: 'Obesity (%)',                             domain: 'Healthcare',    higherIsWorse: true,  unit: 'percent',  decimals: 1 },
+      { id: 'sleep_lt7',   label: 'Sleeping Less than 7 Hours (%)',          domain: 'Healthcare',    higherIsWorse: true,  unit: 'percent',  decimals: 1 },
       // Housing
-      { id: 'med_rent',    label: 'Median Gross Rent ($)',                   domain: 'Housing',       higherIsWorse: null  },
-      { id: 'med_home',    label: 'Median Home Value ($)',                   domain: 'Housing',       higherIsWorse: null  },
-      { id: 'owner_occ',   label: 'Owner-Occupied Households (%)',           domain: 'Housing',       higherIsWorse: null  },
-      { id: 'renter_occ',  label: 'Renter-Occupied Households (%)',          domain: 'Housing',       higherIsWorse: null  },
-      { id: 'vacant',      label: 'Vacant Housing Units (%)',                domain: 'Housing',       higherIsWorse: true  },
-      { id: 'cost_owner',  label: 'Owners Paying ≥30% of Income (%)',        domain: 'Housing',       higherIsWorse: true  },
-      { id: 'cost_rent',   label: 'Renters Paying ≥30% of Income (%)',       domain: 'Housing',       higherIsWorse: true  },
-      { id: 'housing_old', label: 'Housing Built Before 1979 (%)',           domain: 'Housing',       higherIsWorse: null  },
+      { id: 'med_rent',    label: 'Median Gross Rent ($)',                   domain: 'Housing',       higherIsWorse: null,  unit: 'currency', decimals: 0 },
+      { id: 'med_home',    label: 'Median Home Value ($)',                   domain: 'Housing',       higherIsWorse: null,  unit: 'currency', decimals: 0 },
+      { id: 'owner_occ',   label: 'Owner-Occupied Households (%)',           domain: 'Housing',       higherIsWorse: null,  unit: 'percent',  decimals: 1 },
+      { id: 'renter_occ',  label: 'Renter-Occupied Households (%)',          domain: 'Housing',       higherIsWorse: null,  unit: 'percent',  decimals: 1 },
+      { id: 'vacant',      label: 'Vacant Housing Units (%)',                domain: 'Housing',       higherIsWorse: true,  unit: 'percent',  decimals: 1 },
+      { id: 'cost_owner',  label: 'Owners Paying ≥30% of Income (%)',        domain: 'Housing',       higherIsWorse: true,  unit: 'percent',  decimals: 1 },
+      { id: 'cost_rent',   label: 'Renters Paying ≥30% of Income (%)',       domain: 'Housing',       higherIsWorse: true,  unit: 'percent',  decimals: 1 },
+      { id: 'housing_old', label: 'Housing Built Before 1979 (%)',           domain: 'Housing',       higherIsWorse: null,  unit: 'percent',  decimals: 1 },
       // Digital & Transportation
-      { id: 'bb_access',   label: 'Households with Broadband Access (%)',    domain: 'Digital & Transportation', higherIsWorse: false },
-      { id: 'no_intnet',   label: 'Households without Internet Access (%)',  domain: 'Digital & Transportation', higherIsWorse: true  },
-      { id: 'no_veh',      label: 'Households without a Vehicle (%)',        domain: 'Digital & Transportation', higherIsWorse: true  },
-      { id: 'transit',     label: 'Public Transit Commuters (%)',            domain: 'Digital & Transportation', higherIsWorse: false },
-      { id: 'walk',        label: 'Workers Walking to Work (%)',             domain: 'Digital & Transportation', higherIsWorse: null  },
+      { id: 'bb_access',   label: 'Households with Broadband Access (%)',    domain: 'Digital & Transportation', higherIsWorse: false, unit: 'percent', decimals: 1 },
+      { id: 'no_intnet',   label: 'Households without Internet Access (%)',  domain: 'Digital & Transportation', higherIsWorse: true,  unit: 'percent', decimals: 1 },
+      { id: 'no_veh',      label: 'Households without a Vehicle (%)',        domain: 'Digital & Transportation', higherIsWorse: true,  unit: 'percent', decimals: 1 },
+      { id: 'transit',     label: 'Public Transit Commuters (%)',            domain: 'Digital & Transportation', higherIsWorse: false, unit: 'percent', decimals: 1 },
+      { id: 'walk',        label: 'Workers Walking to Work (%)',             domain: 'Digital & Transportation', higherIsWorse: null,  unit: 'percent', decimals: 1 },
       // Social
-      { id: 'age_65p',     label: 'Population Age 65+ (%)',                  domain: 'Social',        higherIsWorse: null  },
-      { id: 'age_18_64',   label: 'Population Age 18-64 (%)',                domain: 'Social',        higherIsWorse: null  },
-      { id: 'med_age',     label: 'Median Age',                              domain: 'Social',        higherIsWorse: null  },
-      { id: 'single_p',    label: 'Single-Parent Families (%)',              domain: 'Social',        higherIsWorse: true  },
-      { id: 'live_alon_65',label: 'Age 65+ Living Alone (%)',                domain: 'Social',        higherIsWorse: null  },
-      { id: 'hh_size',     label: 'Average Household Size',                  domain: 'Social',        higherIsWorse: null  },
-      { id: 'married',     label: 'Married (%)',                             domain: 'Social',        higherIsWorse: null  },
-      { id: 'hisp',        label: 'Hispanic (%)',                            domain: 'Race, Ethnicity & Language', higherIsWorse: null },
-      { id: 'black',       label: 'Black / African American (%)',            domain: 'Race, Ethnicity & Language', higherIsWorse: null },
-      { id: 'white',       label: 'White (%)',                               domain: 'Race, Ethnicity & Language', higherIsWorse: null },
-      { id: 'asian',       label: 'Asian (%)',                               domain: 'Race, Ethnicity & Language', higherIsWorse: null },
-      { id: 'foreign',     label: 'Foreign Born Population (%)',             domain: 'Race, Ethnicity & Language', higherIsWorse: null },
-      { id: 'lang_span',   label: 'Spanish Speakers, Age 5+ (%)',            domain: 'Race, Ethnicity & Language', higherIsWorse: null },
+      { id: 'age_65p',     label: 'Population Age 65+ (%)',                  domain: 'Social',        higherIsWorse: null,  unit: 'percent',  decimals: 1 },
+      { id: 'age_18_64',   label: 'Population Age 18-64 (%)',                domain: 'Social',        higherIsWorse: null,  unit: 'percent',  decimals: 1 },
+      { id: 'med_age',     label: 'Median Age',                              domain: 'Social',        higherIsWorse: null,  unit: 'years',    decimals: 1 },
+      { id: 'single_p',    label: 'Single-Parent Families (%)',              domain: 'Social',        higherIsWorse: true,  unit: 'percent',  decimals: 1 },
+      { id: 'live_alon_65',label: 'Age 65+ Living Alone (%)',                domain: 'Social',        higherIsWorse: null,  unit: 'percent',  decimals: 1 },
+      { id: 'hh_size',     label: 'Average Household Size',                  domain: 'Social',        higherIsWorse: null,  unit: 'count',    decimals: 2 },
+      { id: 'married',     label: 'Married (%)',                             domain: 'Social',        higherIsWorse: null,  unit: 'percent',  decimals: 1 },
+      { id: 'hisp',        label: 'Hispanic (%)',                            domain: 'Race, Ethnicity & Language', higherIsWorse: null, unit: 'percent', decimals: 1 },
+      { id: 'black',       label: 'Black / African American (%)',            domain: 'Race, Ethnicity & Language', higherIsWorse: null, unit: 'percent', decimals: 1 },
+      { id: 'white',       label: 'White (%)',                               domain: 'Race, Ethnicity & Language', higherIsWorse: null, unit: 'percent', decimals: 1 },
+      { id: 'asian',       label: 'Asian (%)',                               domain: 'Race, Ethnicity & Language', higherIsWorse: null, unit: 'percent', decimals: 1 },
+      { id: 'foreign',     label: 'Foreign Born Population (%)',             domain: 'Race, Ethnicity & Language', higherIsWorse: null, unit: 'percent', decimals: 1 },
+      { id: 'lang_span',   label: 'Spanish Speakers, Age 5+ (%)',            domain: 'Race, Ethnicity & Language', higherIsWorse: null, unit: 'percent', decimals: 1 },
     ];
 
     // Correlation matrix — 12 broad-signal indicators covering the domains.
@@ -510,10 +527,55 @@
       charts: {}, mapView: null, layer: null,
     };
 
-    const fmt = v => v == null || isNaN(v) ? '—'
-      : (Math.abs(v) >= 1000
+    // Indicator lookup used by fmt() when an id string is passed.
+    const INDICATORS_BY_ID = Object.fromEntries(INDICATORS.map(i => [i.id, i]));
+
+    // Format a value with the indicator's unit + decimal-place rules.
+    // `ind` can be an indicator object, an indicator id, or omitted
+    // (fallback for county names / chart tick labels that need a
+    // generic thousands-separated number).
+    function fmt(v, ind) {
+      if (v == null || (typeof v === 'number' && isNaN(v))) return '—';
+      const i = typeof ind === 'string' ? INDICATORS_BY_ID[ind] : ind;
+      if (!i) {
+        // Generic fallback — used only when no indicator context
+        // exists (e.g., raw axis tick labels).
+        return Math.abs(v) >= 1000
           ? v.toLocaleString(undefined, {maximumFractionDigits: 0})
-          : v.toLocaleString(undefined, {maximumFractionDigits: 1}));
+          : v.toLocaleString(undefined, {maximumFractionDigits: 1});
+      }
+      const dec = i.decimals ?? 1;
+      const numLocale = {minimumFractionDigits: dec, maximumFractionDigits: dec};
+      switch (i.unit) {
+        case 'percent':  return v.toLocaleString(undefined, numLocale) + '%';
+        case 'currency': return '$' + v.toLocaleString(undefined, numLocale);
+        case 'index':    return v.toLocaleString(undefined, numLocale);
+        case 'years':    return v.toLocaleString(undefined, numLocale) + ' yr';
+        case 'count':    return v.toLocaleString(undefined, numLocale);
+        default:         return v.toLocaleString(undefined, numLocale);
+      }
+    }
+
+    // Format a 5-year change with sign + unit-aware suffix.
+    // Percentage indicators emit "pp" (percentage points, not "%")
+    // because a change from 12% to 14% is 2 percentage points, not "2%".
+    function fmtDelta(v, ind) {
+      if (v == null || (typeof v === 'number' && isNaN(v))) return '—';
+      const i = typeof ind === 'string' ? INDICATORS_BY_ID[ind] : ind;
+      const dec = (i && i.decimals) ?? 1;
+      const numLocale = {minimumFractionDigits: dec, maximumFractionDigits: dec};
+      const sign = v > 0 ? '+' : v < 0 ? '−' : '';  // proper minus glyph
+      const abs = Math.abs(v);
+      if (!i) return sign + abs.toLocaleString(undefined, numLocale);
+      switch (i.unit) {
+        case 'percent':  return sign + abs.toLocaleString(undefined, numLocale) + ' pp';
+        case 'currency': return sign + '$' + abs.toLocaleString(undefined, numLocale);
+        case 'index':    return sign + abs.toLocaleString(undefined, numLocale);
+        case 'years':    return sign + abs.toLocaleString(undefined, numLocale) + ' yr';
+        case 'count':    return sign + abs.toLocaleString(undefined, numLocale);
+        default:         return sign + abs.toLocaleString(undefined, numLocale);
+      }
+    }
 
     // ─────────────────────────────────────────────────────────────────────
     function populateIndicatorSelects() {
@@ -533,9 +595,11 @@
       document.getElementById('indicatorSelectB').value = state.indB;
       document.getElementById('indicatorSelect').addEventListener('change', e => { state.indA = e.target.value; updateAll(); });
       document.getElementById('indicatorSelectB').addEventListener('change', e => { state.indB = e.target.value; updateAll(); });
-      // Palette picker — restyle the map only (no other view depends on it)
+      // Palette + scale-mode pickers — restyle the map only.
       const pal = document.getElementById('paletteSelect');
       if (pal) pal.addEventListener('change', () => restyleMap());
+      const scaleMode = document.getElementById('scaleModeSelect');
+      if (scaleMode) scaleMode.addEventListener('change', () => restyleMap());
     }
 
     async function fetchFeatures() {
@@ -707,8 +771,10 @@
       const ind = INDICATORS.find(i => i.id === field);
       const paletteSel = document.getElementById('paletteSelect');
       const chosenPalette = paletteSel ? paletteSel.value : '__auto';
-      // Auto pick: red if higher is worse, green if higher is better,
-      // gray-blue if neutral. Otherwise honor the user's explicit pick.
+      const scaleModeSel = document.getElementById('scaleModeSelect');
+      const scaleMode = scaleModeSel ? scaleModeSel.value : 'regional';
+      // Auto pick color scheme: red for higher-is-worse, green for
+      // higher-is-better, blue for neutral. Explicit user pick wins.
       let colorScheme;
       if (chosenPalette === '__auto') {
         colorScheme = ind && ind.higherIsWorse === true  ? 'Red 3'
@@ -717,26 +783,10 @@
       } else {
         colorScheme = chosenPalette;
       }
-      try {
-        const rendererResult = await mapModules.colorRendererCreator.createClassBreaksRenderer({
-          layer: state.layer, view: state.mapView, field,
-          classificationMethod: 'quantile', numClasses: 5,
-          colorScheme: { name: colorScheme },
-          legendOptions: { title: ind ? ind.label : field }
-        });
-        state.layer.renderer = rendererResult.renderer;
-      } catch (e) {
-        console.warn('Smart mapping failed with scheme', colorScheme, e);
-        // Fallback: try without the explicit scheme
-        try {
-          const r2 = await mapModules.colorRendererCreator.createClassBreaksRenderer({
-            layer: state.layer, view: state.mapView, field,
-            classificationMethod: 'quantile', numClasses: 5,
-            legendOptions: { title: ind ? ind.label : field }
-          });
-          state.layer.renderer = r2.renderer;
-        } catch (e2) { console.warn('Fallback smart mapping failed', e2); }
-      }
+      // Update the county filter BEFORE the renderer is computed so
+      // class breaks are calculated against the intended feature set
+      // (or the full regional distribution, per the scale toggle) —
+      // not against the previous selection's leftover state.
       const counties = [...selectedCounties()];
       if (counties.length && counties.length < state.counties.size) {
         const list = counties.map(c => `'${c.replace(/'/g, "''")}'`).join(',');
@@ -744,16 +794,65 @@
       } else {
         state.layer.definitionExpression = '';
       }
+      // Give the layer view a moment to acknowledge the new filter
+      // before we ask the smart-mapping renderer to compute breaks.
+      try {
+        const lv = await state.mapView.whenLayerView(state.layer);
+        if (lv && lv.watch) {
+          await new Promise(res => {
+            const h = lv.watch('updating', v => { if (!v) { h.remove(); res(); } });
+            setTimeout(() => { try { h.remove(); } catch(_){} res(); }, 1200);
+          });
+        }
+      } catch (_) { /* ignore — best-effort */ }
+      // Compute class breaks. In "regional" mode we compute against ALL
+      // features (breaks stay comparable across filter changes). In
+      // "current" mode we use the currently-filtered view (default AGOL
+      // behavior). Regional is the default because filter-toggling
+      // with recomputed breaks silently misleads.
+      const rendererParams = {
+        layer: state.layer, view: state.mapView, field,
+        classificationMethod: 'quantile', numClasses: 5,
+        colorScheme: { name: colorScheme },
+        legendOptions: { title: ind ? ind.label : field }
+      };
+      if (scaleMode === 'regional') {
+        // Force renderer to consider the entire dataset by temporarily
+        // dropping the definitionExpression during the calculation.
+        const savedFilter = state.layer.definitionExpression;
+        state.layer.definitionExpression = '';
+        try {
+          const rendererResult = await mapModules.colorRendererCreator.createClassBreaksRenderer(rendererParams);
+          state.layer.renderer = rendererResult.renderer;
+        } catch (e) {
+          console.warn('Smart mapping (regional) failed', colorScheme, e);
+        } finally {
+          state.layer.definitionExpression = savedFilter;
+        }
+      } else {
+        try {
+          const rendererResult = await mapModules.colorRendererCreator.createClassBreaksRenderer(rendererParams);
+          state.layer.renderer = rendererResult.renderer;
+        } catch (e) {
+          console.warn('Smart mapping (current) failed', colorScheme, e);
+          try {
+            const r2 = await mapModules.colorRendererCreator.createClassBreaksRenderer({
+              layer: state.layer, view: state.mapView, field,
+              classificationMethod: 'quantile', numClasses: 5,
+              legendOptions: { title: ind ? ind.label : field }
+            });
+            state.layer.renderer = r2.renderer;
+          } catch (e2) { console.warn('Fallback smart mapping failed', e2); }
+        }
+      }
       // Zoom to the visible tracts so the selection fills the map.
-      // Skip when nothing is selected (definitionExpression would return
-      // no features and .queryExtent would error).
       if (counties.length > 0) {
         try {
           const { extent } = await state.layer.queryExtent();
           if (extent && state.mapView) {
             await state.mapView.goTo(extent.expand(1.15), { duration: 600 });
           }
-        } catch (e) { /* extent query is best-effort, don't crash on failure */ }
+        } catch (e) { /* extent query is best-effort */ }
       }
     }
 
@@ -776,18 +875,23 @@
 
       if (values.length) {
         const mean = values.reduce((a,b) => a+b, 0) / values.length;
-        const median = values[Math.floor(values.length/2)];
+        // Median: average the two middle values when n is even so the
+        // reported median isn't systematically biased toward the upper
+        // half of the distribution.
+        const median = values.length % 2
+          ? values[(values.length - 1) / 2]
+          : (values[values.length / 2 - 1] + values[values.length / 2]) / 2;
         const min = values[0], max = values[values.length-1];
         const variance = values.reduce((a,b) => a + (b-mean)**2, 0) / values.length;
         const std = Math.sqrt(variance);
         const minRow = visible.find(f => f[field] === min);
         const maxRow = visible.find(f => f[field] === max);
-        document.getElementById('kpiMean').textContent = fmt(mean);
-        document.getElementById('kpiMedian').textContent = fmt(median);
-        document.getElementById('kpiMin').textContent = fmt(min);
-        document.getElementById('kpiMax').textContent = fmt(max);
-        document.getElementById('kpiStd').textContent = fmt(std);
-        document.getElementById('kpiRange').textContent = fmt(max - min);
+        document.getElementById('kpiMean').textContent = fmt(mean, ind);
+        document.getElementById('kpiMedian').textContent = fmt(median, ind);
+        document.getElementById('kpiMin').textContent = fmt(min, ind);
+        document.getElementById('kpiMax').textContent = fmt(max, ind);
+        document.getElementById('kpiStd').textContent = fmt(std, ind);
+        document.getElementById('kpiRange').textContent = fmt(max - min, ind);
         document.getElementById('kpiMinTract').textContent = minRow ? `${minRow.tract_geoid} · ${minRow.county_name}` : '';
         document.getElementById('kpiMaxTract').textContent = maxRow ? `${maxRow.tract_geoid} · ${maxRow.county_name}` : '';
       } else {
@@ -804,7 +908,7 @@
         row.innerHTML = `
           <div class="rank-n">${i+1}</div>
           <div class="rank-lbl">${r.tract_geoid}<span class="county">${r.county_name}</span></div>
-          <div class="rank-val">${fmt(r[field])}</div>`;
+          <div class="rank-val">${fmt(r[field], ind)}</div>`;
         rl.appendChild(row);
       });
 
@@ -818,10 +922,10 @@
       });
       const chartValues = chartLabels.map(c => byCounty[c].reduce((x,y)=>x+y,0)/byCounty[c].length);
       document.getElementById('chartTitle').textContent = `County averages — ${ind ? ind.label : field}`;
-      renderBarChart('countyChart', chartLabels, chartValues, '#112E51', 'County', ind ? ind.label : field);
+      renderBarChart('countyChart', chartLabels, chartValues, '#112E51', 'County', ind ? ind.label : field, ind);
     }
 
-    function renderBarChart(canvasId, labels, values, color, xTitle, yTitle) {
+    function renderBarChart(canvasId, labels, values, color, xTitle, yTitle, indicator) {
       if (state.charts[canvasId]) state.charts[canvasId].destroy();
       const ctx = document.getElementById(canvasId).getContext('2d');
       state.charts[canvasId] = new Chart(ctx, {
@@ -829,7 +933,10 @@
         data: { labels, datasets: [{ data: values, backgroundColor: color, borderWidth: 0 }] },
         options: {
           responsive: true, maintainAspectRatio: false,
-          plugins: { legend: { display: false }, tooltip: { callbacks: { label: (c) => fmt(c.parsed.y) } } },
+          plugins: {
+            legend: { display: false },
+            tooltip: { callbacks: { label: (c) => fmt(c.parsed.y, indicator) } }
+          },
           scales: {
             x: {
               title: { display: !!xTitle, text: xTitle || '', font: { size: 11, weight: '600' }, color: '#374151' },
@@ -857,7 +964,21 @@
         sxy += dx*dy; sxx += dx*dx; syy += dy*dy;
       }
       const d = Math.sqrt(sxx*syy);
-      return d === 0 ? 0 : sxy/d;
+      // Preserve null when correlation is undefined (constant series in
+      // either variable — d==0). "Not computable" is a real state and
+      // must not collapse into "no relationship" (r=0).
+      return d === 0 ? null : sxy/d;
+    }
+
+    function corrStrengthLabel(r) {
+      if (r == null) return 'not computable';
+      const a = Math.abs(r);
+      const sign = r > 0 ? '+' : '−';
+      if (a >= 0.8) return `very strong ${sign}`;
+      if (a >= 0.6) return `strong ${sign}`;
+      if (a >= 0.4) return `moderate ${sign}`;
+      if (a >= 0.2) return `weak ${sign}`;
+      return 'no';
     }
 
     function renderCorrelation() {
@@ -870,10 +991,14 @@
         f[fx] != null && !isNaN(f[fx]) &&
         f[fy] != null && !isNaN(f[fy])).map(f => ({ x: f[fx], y: f[fy], tract: f.tract_geoid, county: f.county_name }));
       const r = pearsonR(pts.map(p => p.x), pts.map(p => p.y));
+      const rColor = r == null ? '#6b7280'
+                   : Math.abs(r) >= 0.6 ? '#dc2626'
+                   : Math.abs(r) >= 0.4 ? '#374151'
+                   : '#6b7280';
       document.getElementById('scatterMeta').innerHTML =
         `<b>${indX?.label}</b> vs <b>${indY?.label}</b> · ${pts.length} tracts · ` +
-        `Pearson r = <b style="color:${r > 0.4 ? '#dc2626' : r < -0.4 ? '#059669' : '#6b7280'}">${r != null ? r.toFixed(3) : '—'}</b> ` +
-        `(${r > 0.7 ? 'very strong +' : r > 0.4 ? 'moderate +' : r > 0.2 ? 'weak +' : r < -0.7 ? 'very strong −' : r < -0.4 ? 'moderate −' : r < -0.2 ? 'weak −' : 'no'} correlation)`;
+        `Pearson r = <b style="color:${rColor}">${r != null ? r.toFixed(3) : '—'}</b> ` +
+        `(${corrStrengthLabel(r)} correlation)`;
 
       if (state.charts.scatter) state.charts.scatter.destroy();
       const ctx = document.getElementById('scatterChart').getContext('2d');
@@ -885,7 +1010,7 @@
           plugins: {
             legend: { display: false },
             tooltip: { callbacks: {
-              label: (c) => `Tract ${c.raw.tract} · ${c.raw.county}: ${indX?.label}=${fmt(c.parsed.x)}, ${indY?.label}=${fmt(c.parsed.y)}`
+              label: (c) => `Tract ${c.raw.tract} · ${c.raw.county}: ${indX?.label}=${fmt(c.parsed.x, indX)}, ${indY?.label}=${fmt(c.parsed.y, indY)}`
             }}
           },
           scales: {
@@ -905,7 +1030,7 @@
             if (f[a] == null || f[b] == null || isNaN(f[a]) || isNaN(f[b])) continue;
             xs.push(f[a]); ys.push(f[b]);
           }
-          matrix.push({ a, b, r: pearsonR(xs, ys) || 0 });
+          matrix.push({ a, b, r: pearsonR(xs, ys), n: xs.length });
         }
       }
       renderCorrMatrix(matrix);
@@ -919,8 +1044,9 @@
       const data = matrix.map(m => ({
         x: CORR_INDICATORS.indexOf(m.a),
         y: CORR_INDICATORS.indexOf(m.b),
-        r: Math.max(3, Math.abs(m.r) * 20),
+        r: m.r == null ? 6 : Math.max(3, Math.abs(m.r) * 20),
         raw: m.r,
+        n: m.n,
       }));
       const ctx = document.getElementById('corrChart').getContext('2d');
       state.charts.corr = new Chart(ctx, {
@@ -929,10 +1055,13 @@
           data,
           backgroundColor: data.map(d => {
             const r = d.raw;
-            if (r > 0)  return `rgba(220,38,38,${Math.abs(r).toFixed(2)})`;
-            if (r < 0)  return `rgba(5,150,105,${Math.abs(r).toFixed(2)})`;
+            if (r == null) return 'rgba(148,163,184,0.15)';  // not computable
+            if (r > 0)     return `rgba(220,38,38,${Math.max(0.15, Math.abs(r)).toFixed(2)})`;
+            if (r < 0)     return `rgba(5,150,105,${Math.max(0.15, Math.abs(r)).toFixed(2)})`;
             return 'rgba(107,114,128,0.3)';
           }),
+          borderColor: data.map(d => d.raw == null ? '#94a3b8' : 'transparent'),
+          borderWidth: data.map(d => d.raw == null ? 1.5 : 0),
         }] },
         options: {
           responsive: true, maintainAspectRatio: false,
@@ -943,7 +1072,8 @@
                 const d = c.raw;
                 const a = INDICATORS.find(i => i.id === CORR_INDICATORS[d.x])?.label;
                 const b = INDICATORS.find(i => i.id === CORR_INDICATORS[d.y])?.label;
-                return `${a} vs ${b}: r=${d.raw.toFixed(3)}`;
+                const rTxt = d.raw == null ? 'not computable' : `r=${d.raw.toFixed(3)}`;
+                return `${a} vs ${b}: ${rTxt}  (n=${d.n})`;
               }
             } }
           },
@@ -1004,7 +1134,7 @@
           }
         }
         const tr = document.createElement('tr');
-        const cells = values.map(v => `<td class="num">${fmt(v)}</td>`).join('');
+        const cells = values.map(v => `<td class="num">${fmt(v, ind)}</td>`).join('');
         const bestCls = bestName !== '—' ? 'better' : 'same';
         tr.innerHTML = `<td>${ind.label}</td>${cells}<td class="num ${bestCls}">${bestName}</td>`;
         tbody.appendChild(tr);
@@ -1044,7 +1174,7 @@
         options: {
           indexAxis: 'y',
           responsive: true, maintainAspectRatio: false,
-          plugins: { legend: { display: false }, tooltip: { callbacks: { label: (c) => fmt(c.parsed.x) } } },
+          plugins: { legend: { display: false }, tooltip: { callbacks: { label: (c) => fmtDelta(c.parsed.x, ind) } } },
           scales: {
             x: {
               title: { display: true, text: `5-Year change in ${ind?.label ?? field}`, font: { size: 11, weight: '600' }, color: '#374151' },
@@ -1068,7 +1198,7 @@
         const idx = Math.min(nBins-1, Math.max(0, Math.floor((v - min) / w)));
         bins[idx]++;
       }
-      const binLabels = bins.map((_, i) => fmt(min + i*w));
+      const binLabels = bins.map((_, i) => fmtDelta(min + i*w, ind));
       if (state.charts.trendHist) state.charts.trendHist.destroy();
       const ctx2 = document.getElementById('trendHistogram').getContext('2d');
       state.charts.trendHist = new Chart(ctx2, {
@@ -1092,10 +1222,15 @@
     }
 
     // ─────────────────────────────────────────────────────────────────────
-    // Tract ranking
+    // Tract ranking — direction-aware shading. Rows are always sorted
+    // high-to-low by raw value; the "worst" and "best" classes are
+    // assigned based on the indicator's higherIsWorse orientation.
+    // When higherIsWorse is null (median age, race breakdown, etc.),
+    // no shading is applied because "best" / "worst" are meaningless.
     function renderRanking() {
       const field = state.indA;
       const dfield = field + '_d5';
+      const ind = INDICATORS.find(i => i.id === field);
       const counties = selectedCounties();
       const visible = state.features.filter(f =>
         counties.has(f.county_name) &&
@@ -1105,17 +1240,24 @@
       tbody.innerHTML = '';
       const p10 = Math.floor(sorted.length * 0.1);
       sorted.forEach((r, i) => {
-        const isMax = i < p10;
-        const isMin = i >= sorted.length - p10;
         const tr = document.createElement('tr');
-        if (isMax) tr.classList.add('max-tract');
-        if (isMin) tr.classList.add('min-tract');
+        // Only shade when the indicator has a defined direction.
+        if (ind && ind.higherIsWorse != null && p10 > 0) {
+          const isTop = i < p10;                       // top rows = highest raw values
+          const isBot = i >= sorted.length - p10;      // bottom rows = lowest raw values
+          if (ind.higherIsWorse === true) {
+            if (isTop) tr.classList.add('worst-tract');
+            if (isBot) tr.classList.add('best-tract');
+          } else if (ind.higherIsWorse === false) {
+            if (isTop) tr.classList.add('best-tract');
+            if (isBot) tr.classList.add('worst-tract');
+          }
+        }
         const d = r[dfield];
-        const dTxt = d == null || isNaN(d) ? '—' : (d > 0 ? '+' : '') + fmt(d);
         tr.innerHTML = `
           <td>${i+1}</td><td>${r.tract_geoid}</td><td>${r.county_name}</td>
-          <td class="num">${fmt(r[field])}</td>
-          <td class="num">${dTxt}</td>`;
+          <td class="num">${fmt(r[field], ind)}</td>
+          <td class="num">${fmtDelta(d, ind)}</td>`;
         tbody.appendChild(tr);
       });
     }
