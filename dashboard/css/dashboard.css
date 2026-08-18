@@ -219,7 +219,10 @@
        current renderer's classBreakInfos by renderMapLegend(). */
     .map-legend {
       position: absolute;
-      left: 8px; right: 8px; bottom: 8px;
+      /* bottom raised above the ArcGIS attribution strip (~24px)
+         so the "Map data © OpenStreetMap / Powered by Esri" line
+         stays visible for license compliance. */
+      left: 8px; right: 8px; bottom: 28px;
       background: rgba(255,255,255,0.94);
       border: 1px solid var(--gray-300);
       border-radius: 4px;
@@ -322,8 +325,11 @@
       border: 1px solid var(--gray-300); border-radius: 4px; cursor: pointer;
     }
     .county-actions button:hover { background: var(--gray-100); }
-    /* Analysis views (correlation, compare, trends) */
-    .analysis-view { padding: 12px; height: 100%; overflow: auto; display: flex; flex-direction: column; gap: 10px; }
+    /* Analysis views (correlation, compare, trends). gap raised from
+       10 to 14 so panel-to-panel breathing room reads on 1080p+
+       displays without the second heading crowding the first chart's
+       tick labels. */
+    .analysis-view { padding: 12px; height: 100%; overflow: auto; display: flex; flex-direction: column; gap: 14px; }
     .analysis-panel { background: white; border-radius: 6px; padding: 14px 16px; }
     .split-controls {
       display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 8px;
@@ -355,7 +361,12 @@
       border-radius: 4px;
     }
     .analysis-view { flex: 1; min-height: 0; }
-    .analysis-panel { display: flex; flex-direction: column; min-height: 340px; }
+    /* overflow: hidden + min-width: 0 clip any chart canvas that
+       Chart.js would otherwise draw past the panel border (root cause
+       of the "second panel heading crashes into first panel's tick
+       labels" screenshots — Chart.js with maintainAspectRatio:false
+       overdraws when the flex parent has no bounded height). */
+    .analysis-panel { display: flex; flex-direction: column; min-height: 340px; min-width: 0; overflow: hidden; }
     /* Charts that should grow with the panel + browser height. Chart
        min-height raised from 220px to 320px so complex charts (11-
        county bar with axis titles + tick labels, 12x12 correlation
@@ -367,6 +378,10 @@
       flex: 1 1 auto;
       min-height: 320px;
       display: flex;
+      /* Second line of defence against Chart.js overdraw. Even with
+         panel-level overflow:hidden, clipping at the chart-box means
+         the canvas can never paint past its own rounded border. */
+      overflow: hidden;
     }
     .chart-box canvas { flex: 1; width: 100% !important; height: 100% !important; }
     /* Empty-state overlay used when a chart has nothing to render
