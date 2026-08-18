@@ -125,7 +125,7 @@
       return list;
     }
 
-    const LAYER_URL = 'https://services.arcgis.com/UnTXoPXBYERF0OH6/arcgis/rest/services/jhfrc_census_tracts_v3/FeatureServer/0';
+    const LAYER_URL = 'https://services.arcgis.com/UnTXoPXBYERF0OH6/arcgis/rest/services/jhfrc_census_tracts_v4/FeatureServer/0';
 
     const state = {
       features: [], counties: new Set(),
