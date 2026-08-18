@@ -659,6 +659,13 @@
       // blank until nudged. Force display:block AND ask the MapView
       // to reflow, so the map redraws immediately instead of the user
       // seeing a blank tile until the next filter change.
+      // DIAGNOSTIC (temporary). console.log so it survives info-level
+      // filters. If this doesn't appear when the Overview tab is
+      // clicked, the tab wiring isn't reaching this branch at all.
+      if (t.dataset.view === 'overview') {
+        console.log('[map] Overview tab activated. state.mapView =',
+                    state.mapView ? 'present' : 'MISSING');
+      }
       if (t.dataset.view === 'overview' && state.mapView) {
         state.mapView.container.style.display = 'block';
         // PR #15's requestAnimationFrame + goTo wasn't enough — the
@@ -683,7 +690,7 @@
             const c = state.mapView.container;
             try {
               const info = `container=${c.offsetWidth}x${c.offsetHeight} ready=${state.mapView.ready} suspended=${state.mapView.suspended}`;
-              console.info(`[map] tab-return nudge: ${info}`);
+              console.log(`[map] tab-return nudge: ${info}`);
               // 1 + 2: kick every observer we can reach.
               c.dispatchEvent(new Event('resize'));
               window.dispatchEvent(new Event('resize'));
