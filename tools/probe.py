@@ -1,23 +1,34 @@
 """Regression probe for the JHFRC ArcGIS Explorer dashboard.
 
 Runs three headless viewports (desktop, tablet, mobile) against the live
-GitHub Pages dashboard, exercises every indicator in the dropdown, and
-checks that:
+GitHub Pages dashboard and checks:
 
-- No indicator returns 0 tracts / no data
-- The console reports no missing layer fields (or an intentional gap)
-- The .app grid rows and children line up correctly
-- The Filters toggle is hidden on desktop / tablet, visible on mobile
-- The sidebar backdrop starts hidden on load at every viewport
-- No page-level error console entries beyond known environment noise
+Brief 2 baseline
+  - Every indicator in the dropdown returns >0 tracts
+  - No missing-fields console warnings
+  - .app grid rows / children line up
+  - Filters toggle hidden on desktop / tablet, visible on mobile
+  - Sidebar backdrop starts hidden at every viewport
+  - No page-level error console entries beyond known environment noise
 
-Also saves one screenshot per viewport for visual review.
+Brief 3 additions
+  D1 — trend summary uses the correct verb (no "fell the most" when
+       every county rose)
+  D2 — no "Skipping N missing fields" console warning
+  D3 — mobile KPI panel is actually visible (>200px rendered height
+       at 390x844)
+  D4 — CSV exports are numeric-parseable; no cell contains %/pp/$/
+       U+2212 minus
+  D5 — indicator selection survives a county filter change
+
+Saves one screenshot per viewport + one CSV per export test to
+`tools/probe_out/` for visual review.
 
 Usage (from repo root):
 
     pip install playwright && playwright install chromium
-    python tools/probe.py                     # probes production
-    python tools/probe.py http://localhost:8000/dashboard/   # local server
+    LANG=en_US.UTF-8 python tools/probe.py
+    LANG=en_US.UTF-8 python tools/probe.py http://localhost:8000/dashboard/
 
 Environment note: on shells with a POSIX-only locale (LANG=en_US@posix),
 ArcGIS ScaleBar / smart-mapping legend formatters throw
@@ -26,12 +37,20 @@ a site bug. Prefix the run with `LANG=en_US.UTF-8` if you see it.
 """
 from __future__ import annotations
 
+import csv
+import io
 import json
+import re
 import sys
 from pathlib import Path
 
 DEFAULT_URL = "https://amohith7.github.io/jhfrc-arcgis-explorer/dashboard/"
 OUT_DIR = Path(__file__).resolve().parent.parent / "tools" / "probe_out"
+
+# Unit / formatting characters that a downstream analyst can't parse
+# as a number. Brief 3 D4.
+NON_NUMERIC_CHARS = ("%", "pp", "$", "−", "yr")
+
 
 CHECKS = """() => {
   const g = s => {
@@ -51,18 +70,142 @@ CHECKS = """() => {
     backdrop: g('#sidebarBackdrop'),
     main: g('main'),
     mapView: g('#mapView'),
+    kpiPanel: g('.kpi-panel'),
     optionCount: document.querySelectorAll('#indicatorSelect option').length,
     coverageNote: (document.getElementById('coverageNote') || {}).textContent || '',
   };
 }"""
 
 
+def _capture_download(page, trigger_selector: str, dest_dir: Path) -> Path | None:
+    """Click the trigger and save the resulting download. None on timeout."""
+    try:
+        with page.expect_download(timeout=8000) as info:
+            page.click(trigger_selector)
+        d = info.value
+        dest = dest_dir / d.suggested_filename
+        d.save_as(str(dest))
+        return dest
+    except Exception:
+        return None
+
+
+def _csv_numeric_violations(csv_path: Path) -> list[str]:
+    """Return any cell whose column looks numeric but the value contains
+    a unit character or is a formatted string. Brief 3 D4."""
+    try:
+        text = csv_path.read_text(encoding="utf-8-sig")
+    except Exception as e:
+        return [f"unreadable: {e}"]
+    # Strip commented preamble.
+    lines = [ln for ln in text.splitlines() if not ln.lstrip().startswith("#")]
+    if not lines:
+        return ["empty CSV"]
+    reader = csv.DictReader(io.StringIO("\n".join(lines)))
+    numeric_cols = {
+        "value",
+        "unweighted_mean",
+        "delta_2015_19_to_2020_24",
+        "value_moe",
+        "tract_count",
+        "suppressed_count",
+    }
+    bad: list[str] = []
+    for i, row in enumerate(reader):
+        for col in numeric_cols & row.keys():
+            v = (row[col] or "").strip()
+            if not v:
+                continue
+            if any(ch in v for ch in NON_NUMERIC_CHARS):
+                bad.append(f"row {i} col {col}={v!r}")
+            else:
+                try:
+                    float(v)
+                except ValueError:
+                    bad.append(f"row {i} col {col}={v!r} not float")
+    return bad
+
+
+def _brief3_extra(page, dest_dir: Path) -> dict:
+    """Run the Brief 3 D-series assertions. Returns dict of results."""
+    findings: dict = {}
+
+    # D1 — sign-aware trend verb on an all-positive-change indicator.
+    try:
+        page.select_option("#indicatorSelect", "med_home")
+        page.click("#tab-trends")
+        page.wait_for_timeout(1400)
+        meta = page.eval_on_selector("#trendMeta", "e => e.innerText")
+        findings["d1_trend_meta"] = meta[:220]
+        findings["d1_ok"] = "fell the most" not in meta
+    except Exception as e:
+        findings["d1_ok"] = f"error: {e}"
+
+    # D2 — no "Skipping N missing fields" console warnings.
+    #      (populated by run(); we mirror it here for the summary.)
+
+    # D3 — KPI panel rendered height at THIS viewport.
+    try:
+        page.click("#tab-overview")
+        page.wait_for_timeout(600)
+        kpi_h = page.eval_on_selector(
+            ".kpi-panel", "e => e.getBoundingClientRect().height"
+        )
+        findings["d3_kpi_panel_h"] = round(kpi_h)
+    except Exception as e:
+        findings["d3_kpi_panel_h"] = f"error: {e}"
+
+    # D4 — CSV downloads parse numerically.
+    for tab, btn, name in [
+        ("ranking", "#rankingCsvBtn", "ranking"),
+        ("compare", "#compareCsvBtn", "compare"),
+    ]:
+        try:
+            page.click(f"#tab-{tab}")
+            page.wait_for_timeout(500)
+            path = _capture_download(page, btn, dest_dir)
+            if not path:
+                findings[f"d4_{name}_csv"] = "no download"
+                continue
+            findings[f"d4_{name}_csv_file"] = path.name
+            bad = _csv_numeric_violations(path)
+            findings[f"d4_{name}_violations"] = bad[:5]
+            findings[f"d4_{name}_ok"] = not bad
+        except Exception as e:
+            findings[f"d4_{name}_csv"] = f"error: {e}"
+
+    # D5 — indicator selection survives a county filter change.
+    try:
+        page.click("#tab-overview")
+        page.wait_for_timeout(300)
+        before = page.eval_on_selector("#indicatorSelect", "e => e.value")
+        # Uncheck one county — must not silently swap indA.
+        cbx = page.query_selector("#countyList input[type=checkbox]")
+        if cbx:
+            cbx.uncheck()
+            page.wait_for_timeout(700)
+        after = page.eval_on_selector("#indicatorSelect", "e => e.value")
+        findings["d5_before"] = before
+        findings["d5_after"] = after
+        findings["d5_ok"] = before == after
+    except Exception as e:
+        findings["d5_ok"] = f"error: {e}"
+
+    return findings
+
+
 def run(url: str, width: int, height: int) -> dict:
     from playwright.sync_api import sync_playwright
 
+    OUT_DIR.mkdir(parents=True, exist_ok=True)
+    dl_dir = OUT_DIR / f"downloads_{width}"
+    dl_dir.mkdir(parents=True, exist_ok=True)
+
     with sync_playwright() as p:
         browser = p.chromium.launch()
-        page = browser.new_page(viewport={"width": width, "height": height})
+        page = browser.new_page(
+            viewport={"width": width, "height": height}, accept_downloads=True,
+        )
         logs: list[str] = []
         page.on("console", lambda m: logs.append(f"{m.type}: {m.text[:400]}"))
         page.goto(url, wait_until="networkidle", timeout=90_000)
@@ -73,7 +216,7 @@ def run(url: str, width: int, height: int) -> dict:
         errors = [line for line in logs if line.startswith("error")]
 
         options = page.eval_on_selector_all(
-            "#indicatorSelect option", "els => els.map(e => e.value)"
+            "#indicatorSelect option:not(:disabled)", "els => els.map(e => e.value)",
         )
         empty: list[str] = []
         for value in options:
@@ -83,7 +226,9 @@ def run(url: str, width: int, height: int) -> dict:
             if n in ("0", "—"):
                 empty.append(value)
 
-        OUT_DIR.mkdir(parents=True, exist_ok=True)
+        # Brief 3 assertions
+        extra = _brief3_extra(page, dl_dir)
+
         screenshot = OUT_DIR / f"probe_{width}.png"
         page.screenshot(path=str(screenshot))
 
@@ -92,9 +237,8 @@ def run(url: str, width: int, height: int) -> dict:
         print(f"missing fields: {skipped or 'none'}")
         print(f"errors: {errors or 'none'}")
         print(f"indicators returning zero tracts: {empty or 'none'}")
-        print(
-            f"screenshot: {screenshot.relative_to(Path.cwd()) if Path.cwd() in screenshot.parents else screenshot}"
-        )
+        print("Brief 3 extras:", json.dumps(extra, indent=1))
+        print(f"screenshot: {screenshot}")
 
         browser.close()
 
@@ -104,6 +248,7 @@ def run(url: str, width: int, height: int) -> dict:
             "skipped_fields_logs": skipped,
             "errors": errors,
             "zero_tract_indicators": empty,
+            "extras": extra,
             "screenshot": str(screenshot),
         }
 
@@ -116,19 +261,44 @@ def main(argv: list[str]) -> int:
     for w, h in [(1440, 900), (768, 1024), (390, 844)]:
         results.append(run(url, w, h))
 
-    # Pass / fail summary (advisory — the caller decides based on the run)
     failures: list[str] = []
     for r in results:
+        vp = r["viewport"]
         if r["zero_tract_indicators"]:
             failures.append(
-                f"{r['viewport']}: {len(r['zero_tract_indicators'])} indicators returning 0 tracts"
+                f"{vp}: {len(r['zero_tract_indicators'])} indicators returning 0 tracts"
             )
-        if r["errors"]:
-            for e in r["errors"]:
-                # Environment noise the brief calls out explicitly.
-                if "Invalid language tag" in e:
-                    continue
-                failures.append(f"{r['viewport']}: console error: {e[:120]}")
+        # Brief 3 D2 — no missing-fields warnings.
+        if r["skipped_fields_logs"]:
+            failures.append(
+                f"{vp}: missing-fields warning: {r['skipped_fields_logs'][0]}"
+            )
+        for e in r["errors"]:
+            if "Invalid language tag" in e:
+                continue
+            failures.append(f"{vp}: console error: {e[:120]}")
+        ex = r["extras"]
+        if ex.get("d1_ok") is not True:
+            failures.append(f"{vp}: D1 trend verb — {ex.get('d1_trend_meta','')}")
+        # D3 KPI panel visibility — only meaningful on mobile.
+        if vp.startswith("390"):
+            h_ok = (
+                isinstance(ex.get("d3_kpi_panel_h"), int) and ex["d3_kpi_panel_h"] > 200
+            )
+            if not h_ok:
+                failures.append(f"{vp}: D3 KPI panel height {ex.get('d3_kpi_panel_h')}")
+        if ex.get("d4_ranking_ok") is not True:
+            failures.append(
+                f"{vp}: D4 ranking CSV bad cells: {ex.get('d4_ranking_violations')}"
+            )
+        if ex.get("d4_compare_ok") is not True:
+            failures.append(
+                f"{vp}: D4 compare CSV bad cells: {ex.get('d4_compare_violations')}"
+            )
+        if ex.get("d5_ok") is not True:
+            failures.append(
+                f"{vp}: D5 indicator swapped from {ex.get('d5_before')} to {ex.get('d5_after')}"
+            )
     print("\n=== summary ===")
     if failures:
         print("FAIL:")
