@@ -83,16 +83,19 @@ def parse_county_xml(xml_path: Path) -> list[dict]:
         "Alabama": "AL",
         "North Carolina": "NC",
     }.get(state_name, "")
-    county_fips = ""
-    # First tract's GEOID -> first 5 chars is county FIPS
-    first_tract = root.find(".//Tract")
-    if first_tract is not None:
-        gid = first_tract.attrib.get("geoid", "")
-        if len(gid) >= 5:
-            county_fips = gid[:5]
+    # Root attrib carries the 5-digit county FIPS; fall back to the
+    # first profile's GEOID prefix if missing.
+    county_fips = str(root.attrib.get("fips", "")).zfill(5)
+    if not county_fips or county_fips == "00000":
+        first_prof = root.find(".//CommunityProfile")
+        if first_prof is not None:
+            gid = first_prof.attrib.get("geoid", "")
+            if len(gid) >= 5:
+                county_fips = gid[:5]
 
     rows: list[dict] = []
-    for tract in root.findall(".//Tract"):
+    # The XML uses <CommunityProfile geoid="..."> — one per tract.
+    for tract in root.findall(".//CommunityProfile"):
         tract_geoid = tract.attrib.get("geoid", "")
         indicators_el = tract.find("KeyCommunityIndicators")
         if indicators_el is None:
