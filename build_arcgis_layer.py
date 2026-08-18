@@ -114,7 +114,10 @@ HEADLINE_INDICATORS: list[tuple[str, str]] = [
     ("black", "Black / African American (%)"),
     ("white", "White (%)"),
     ("asian", "Asian (%)"),
-    ("foreign", "Foreign Born Population (%)"),
+    # "foreign" is a SQL reserved word (FOREIGN KEY); AGOL's append/
+    # publish path builds unquoted INSERT SQL and fails with
+    # "Invalid SQL syntax near 'foreign'". Use foreign_born instead.
+    ("foreign_born", "Foreign Born Population (%)"),
     ("lang_span", "Spanish Speakers (Age 5+) (%)"),
 ]
 
@@ -188,6 +191,14 @@ def wide_pivot(long_df: "pd.DataFrame") -> "pd.DataFrame":  # type: ignore  # no
         columns={c: f"{c}_supp" for c in supp.columns if c not in keep_cols}
     )
     wide = wide.merge(supp, on=keep_cols, how="left")
+    # AGOL's hosted feature layer schema does not accept the pandas bool
+    # dtype — publish jobs fail silently in AGOL's job runner when any
+    # column has type bool. Convert every _supp column to nullable int8
+    # (0 / 1 / NA) so the schema is portable. Keeps the semantic value
+    # while making the file publishable.
+    supp_cols = [c for c in wide.columns if c.endswith("_supp")]
+    for c in supp_cols:
+        wide[c] = wide[c].astype("Int8")
     return wide
 
 
@@ -202,6 +213,94 @@ def emit_arcgis_layer(formats: list[str] = ["gpkg", "shp", "geojson"],) -> None:
 
     wide = wide_pivot(long_df)
     print(f"Wide pivot: {len(wide):,} tracts x {wide.shape[1]} columns")
+
+    # Coverage assertion (Brief 2 A1). Every configured HEADLINE_INDICATORS
+    # short-id must appear as a value column on the wide frame. Silent
+    # drift here is what let the last publish go out with only 21 of 61
+    # indicators — the pivot dropped any indicator whose Python label
+    # didn't match the source XML exactly, without ever raising.
+    expected = {short for short, _label in HEADLINE_INDICATORS}
+    present = set(wide.columns)
+    missing = sorted(expected - present)
+    if missing:
+        raise RuntimeError(
+            "HEADLINE_INDICATORS drift: the following configured "
+            f"short-ids did not survive the pivot ({len(missing)} of "
+            f"{len(expected)} missing). Verify each label matches the "
+            "source XML character-for-character (unicode dashes, "
+            f"percent signs, spacing):\n  - " + "\n  - ".join(missing)
+        )
+    print(f"Coverage OK: all {len(expected)} HEADLINE_INDICATORS present in the pivot.")
+
+    # SQL-reserved-word check. AGOL's publish/append pipeline builds
+    # unquoted INSERT SQL, so any column whose name is a SQL reserved
+    # word fails with "Invalid SQL syntax near '<name>'". This blew up
+    # the first republish attempt on the column literally named
+    # "foreign". Fail early with a clear message instead.
+    SQL_RESERVED = {
+        "order",
+        "group",
+        "select",
+        "where",
+        "from",
+        "join",
+        "key",
+        "index",
+        "table",
+        "view",
+        "column",
+        "row",
+        "null",
+        "default",
+        "check",
+        "unique",
+        "primary",
+        "foreign",
+        "references",
+        "grant",
+        "revoke",
+        "case",
+        "when",
+        "then",
+        "else",
+        "end",
+        "as",
+        "on",
+        "and",
+        "or",
+        "not",
+        "in",
+        "is",
+        "like",
+        "between",
+        "distinct",
+        "having",
+        "limit",
+        "offset",
+        "union",
+        "cross",
+        "outer",
+        "inner",
+        "left",
+        "right",
+        "full",
+        "using",
+        "asc",
+        "desc",
+        "into",
+    }
+    hits = sorted(
+        c
+        for c in wide.columns
+        if c.lower() in SQL_RESERVED
+        or c.lower().rstrip("_d5").rstrip("_supp") in SQL_RESERVED
+    )
+    if hits:
+        raise RuntimeError(
+            "SQL-reserved column names present — AGOL append/publish will "
+            f"fail with 'Invalid SQL syntax near <name>'. Rename these in "
+            f"HEADLINE_INDICATORS: {hits}"
+        )
 
     joined = tracts.merge(wide, on="tract_geoid", how="inner")
     print(f"Joined to polygons: {len(joined):,} tracts")
