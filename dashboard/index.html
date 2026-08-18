@@ -416,6 +416,7 @@
           <div class="footnote">
             Live from ArcGIS Feature Layer<br>
             <a href="https://services.arcgis.com/UnTXoPXBYERF0OH6/arcgis/rest/services/jhfrc_census_tracts/FeatureServer/0" target="_blank">jhfrc_census_tracts</a>
+            <div id="coverageNote" style="margin-top:6px; color:#4b5563;"></div>
           </div>
         </div>
       </aside>
@@ -476,8 +477,11 @@
                 in the left sidebar. Each selected county becomes a
                 column. The <b>Best</b> column highlights the county
                 with the most favorable value for that indicator (only
-                for indicators with a defined direction). Numbers are
-                county averages across all tracts in the selected county.
+                for indicators with a defined direction). Numbers shown
+                are the <b>unweighted mean</b> of tract values in each
+                county. This can differ from a population-weighted
+                average when tracts within a county have very
+                different populations.
               </div>
               <div class="compare-scroll">
                 <table class="compare-table" id="compareTable">
@@ -607,9 +611,30 @@
       { id: 'lang_span',   label: 'Spanish Speakers, Age 5+ (%)',            domain: 'Race, Ethnicity & Language', higherIsWorse: null, unit: 'percent', decimals: 1 },
     ];
 
-    // Correlation matrix — 12 broad-signal indicators covering the domains.
-    const CORR_INDICATORS = ['pov_below','mhi','edu_ba','no_insur','obesity','hh_diab',
-                             'ph_poor14','bb_access','no_veh','youth_dis','cost_rent','single_p'];
+    // Correlation matrix — 12 broad-signal indicators covering the SDoH
+    // domains. This is the aspirational full list; the actual matrix
+    // uses corrIndicators() which filters to what the layer actually
+    // publishes and falls back to a domain-spanning subset of the live
+    // 21 when many of the aspirational picks aren't published yet.
+    const CORR_INDICATORS_TARGET = [
+      'pov_below','mhi','edu_ba','no_insur','obesity','hh_diab',
+      'ph_poor14','bb_access','no_veh','youth_dis','cost_rent','single_p'
+    ];
+    const CORR_INDICATORS_FALLBACK = [
+      'pov_below','mhi','mpci','emp_adults','edu_ba','edu_posths',
+      'hh_snap','hh_diab','obesity','smoke','vacant','med_rent'
+    ];
+    function corrIndicators() {
+      const present = state.presentFields || new Set();
+      const fromTarget = CORR_INDICATORS_TARGET.filter(id => present.has(id));
+      // If at least three-quarters of the target list is published, use
+      // it. Otherwise use the fallback (also filtered to what's live).
+      if (fromTarget.length >= Math.ceil(CORR_INDICATORS_TARGET.length * 0.75)) {
+        return fromTarget;
+      }
+      const fromFallback = CORR_INDICATORS_FALLBACK.filter(id => present.has(id));
+      return fromFallback.length >= 3 ? fromFallback : fromTarget;
+    }
 
     const LAYER_URL = 'https://services.arcgis.com/UnTXoPXBYERF0OH6/arcgis/rest/services/jhfrc_census_tracts/FeatureServer/0';
 
@@ -687,9 +712,19 @@
 
     // ─────────────────────────────────────────────────────────────────────
     function populateIndicatorSelects() {
+      // Filter to indicators that actually exist on the published layer,
+      // so we never offer a dropdown option that returns 0 tracts / an
+      // empty ranking / empty charts. The full INDICATORS constant is
+      // aspirational (targets the eventual 61-indicator republish); until
+      // the layer catches up we hide the rest so users don't hit "dead"
+      // selections.
+      const available = state.publishedIndicators && state.publishedIndicators.length
+        ? state.publishedIndicators
+        : INDICATORS;
       const groups = {};
-      for (const ind of INDICATORS) (groups[ind.domain] ||= []).push(ind);
+      for (const ind of available) (groups[ind.domain] ||= []).push(ind);
       for (const sel of [document.getElementById('indicatorSelect'), document.getElementById('indicatorSelectB')]) {
+        sel.innerHTML = '';
         for (const [domain, inds] of Object.entries(groups)) {
           const og = document.createElement('optgroup'); og.label = domain;
           for (const ind of inds) {
@@ -698,6 +733,14 @@
           }
           sel.appendChild(og);
         }
+      }
+      // If the currently-selected indicator isn't in the available set,
+      // fall back to the first available one so the app still boots
+      // rather than showing a null renderer.
+      const availableIds = new Set(available.map(i => i.id));
+      if (!availableIds.has(state.indA)) state.indA = available[0]?.id ?? state.indA;
+      if (!availableIds.has(state.indB)) {
+        state.indB = available.find(i => i.id !== state.indA)?.id ?? state.indA;
       }
       document.getElementById('indicatorSelect').value = state.indA;
       document.getElementById('indicatorSelectB').value = state.indB;
@@ -708,6 +751,14 @@
       if (pal) pal.addEventListener('change', () => restyleMap());
       const scaleMode = document.getElementById('scaleModeSelect');
       if (scaleMode) scaleMode.addEventListener('change', () => restyleMap());
+      // Visible coverage note in the sidebar Data source panel, so the
+      // gap between configured and published is legible rather than
+      // hidden in the console.
+      const coverEl = document.getElementById('coverageNote');
+      if (coverEl) {
+        coverEl.textContent =
+          `${available.length} of ${INDICATORS.length} configured indicators published on this layer.`;
+      }
     }
 
     async function fetchFeatures() {
@@ -717,14 +768,29 @@
       const schemaResp = await fetch(`${LAYER_URL}?f=json`);
       const schema = await schemaResp.json();
       const existing = new Set((schema.fields || []).map(f => f.name));
+      // Ask for value + 5-yr delta + suppression flag for every
+      // configured indicator. The suppression flag is what lets us tell
+      // "the value is null because the tract was suppressed for privacy"
+      // apart from "the value is null because the indicator wasn't
+      // published to this layer yet" — a distinction that matters for
+      // how we phrase the KPI tile ("N suppressed" vs "not published").
       const desired = ['tract_geoid','county_name',
                        ...INDICATORS.map(i => i.id),
-                       ...INDICATORS.map(i => i.id + '_d5')];
+                       ...INDICATORS.map(i => i.id + '_d5'),
+                       ...INDICATORS.map(i => i.id + '_supp')];
       const fields = desired.filter(f => existing.has(f));
       const missing = desired.filter(f => !existing.has(f));
       if (missing.length) {
         console.warn(`Skipping ${missing.length} missing fields:`, missing);
       }
+      // Publish the field inventory on state so the rest of the app can
+      // gate its behaviour on what actually exists rather than on the
+      // aspirational INDICATORS constant.
+      state.presentFields = existing;
+      state.publishedIndicators = INDICATORS.filter(i => existing.has(i.id));
+      state.publishedDeltaIds = new Set(
+        INDICATORS.filter(i => existing.has(i.id + '_d5')).map(i => i.id)
+      );
       const url = `${LAYER_URL}/query?where=1%3D1&outFields=${fields.join(',')}&f=json&resultRecordCount=2000`;
       const r = await fetch(url);
       const data = await r.json();
@@ -1110,11 +1176,35 @@
         f[field] !== null && f[field] !== undefined && !isNaN(f[field]));
       const values = visible.map(f => f[field]).slice().sort((a,b) => a-b);
       const totalVisible = state.features.filter(f => counties.has(f.county_name)).length;
-      const suppressed = totalVisible - visible.length;
+      // Split "no value" into two categories using the _supp flag the
+      // layer already publishes: privacy-suppressed (small-cell or
+      // MOE-flagged) vs the field just not being published yet.
+      // Suppressed is a legitimate methodology outcome; missing-because-
+      // -not-published is our layer's problem. Users need to see the
+      // distinction.
+      const suppField = field + '_supp';
+      let suppressed = 0, notPublished = 0;
+      for (const f of state.features) {
+        if (!counties.has(f.county_name)) continue;
+        const v = f[field];
+        if (v == null || isNaN(v)) {
+          if (state.presentFields && state.presentFields.has(suppField) && f[suppField]) {
+            suppressed += 1;
+          } else {
+            notPublished += 1;
+          }
+        }
+      }
 
       document.getElementById('kpiHeader').textContent = ind ? ind.label : field;
       document.getElementById('kpiTracts').textContent = visible.length.toLocaleString();
-      document.getElementById('kpiSuppressed').textContent = suppressed ? `${suppressed} suppressed / no data` : 'no missing values';
+      // Two clauses so viewers can tell privacy suppression apart from
+      // a field the tract genuinely has no publishable value for.
+      const parts = [];
+      if (suppressed) parts.push(`${suppressed} suppressed`);
+      if (notPublished) parts.push(`${notPublished} no value`);
+      document.getElementById('kpiSuppressed').textContent =
+        parts.length ? parts.join(' · ') : 'no missing values';
 
       if (values.length) {
         const mean = values.reduce((a,b) => a+b, 0) / values.length;
@@ -1263,10 +1353,14 @@
         }
       });
 
-      // Correlation matrix (10 x 10) — encoded as heatmap-style horizontal bars
+      // Correlation matrix — sized to the indicators actually published.
+      // corrIndicators() picks the aspirational 12 when at least 75%
+      // exist on the layer and falls back to a domain-spanning subset
+      // of the live 21 otherwise. Prevents empty rows/columns.
+      const CORR = corrIndicators();
       const matrix = [];
-      for (const a of CORR_INDICATORS) {
-        for (const b of CORR_INDICATORS) {
+      for (const a of CORR) {
+        for (const b of CORR) {
           const xs = [], ys = [];
           for (const f of state.features) {
             if (!counties.has(f.county_name)) continue;
@@ -1276,17 +1370,17 @@
           matrix.push({ a, b, r: pearsonR(xs, ys), n: xs.length });
         }
       }
-      renderCorrMatrix(matrix);
+      renderCorrMatrix(matrix, CORR);
     }
 
-    function renderCorrMatrix(matrix) {
+    function renderCorrMatrix(matrix, CORR) {
       // Chart.js doesn't have a native heatmap. Render as bubble chart where
       // bubble color + size encodes |r|.
       if (state.charts.corr) state.charts.corr.destroy();
-      const n = CORR_INDICATORS.length;
+      const n = CORR.length;
       const data = matrix.map(m => ({
-        x: CORR_INDICATORS.indexOf(m.a),
-        y: CORR_INDICATORS.indexOf(m.b),
+        x: CORR.indexOf(m.a),
+        y: CORR.indexOf(m.b),
         r: m.r == null ? 6 : Math.max(3, Math.abs(m.r) * 20),
         raw: m.r,
         n: m.n,
@@ -1313,8 +1407,8 @@
             tooltip: { callbacks: {
               label: (c) => {
                 const d = c.raw;
-                const a = INDICATORS.find(i => i.id === CORR_INDICATORS[d.x])?.label;
-                const b = INDICATORS.find(i => i.id === CORR_INDICATORS[d.y])?.label;
+                const a = INDICATORS.find(i => i.id === CORR[d.x])?.label;
+                const b = INDICATORS.find(i => i.id === CORR[d.y])?.label;
                 const rTxt = d.raw == null ? 'not computable' : `r=${d.raw.toFixed(3)}`;
                 return `${a} vs ${b}: ${rTxt}  (n=${d.n})`;
               }
@@ -1324,12 +1418,12 @@
             x: {
               min: -0.5, max: n-0.5,
               title: { display: true, text: 'Indicator (X-axis)', font: { size: 11, weight: '600' }, color: '#374151' },
-              ticks: { stepSize: 1, callback: (v) => CORR_INDICATORS[v] || '', font: { size: 9 }, maxRotation: 60 }
+              ticks: { stepSize: 1, callback: (v) => CORR[v] || '', font: { size: 9 }, maxRotation: 60 }
             },
             y: {
               min: -0.5, max: n-0.5,
               title: { display: true, text: 'Indicator (Y-axis)', font: { size: 11, weight: '600' }, color: '#374151' },
-              ticks: { stepSize: 1, callback: (v) => CORR_INDICATORS[v] || '', font: { size: 9 } }
+              ticks: { stepSize: 1, callback: (v) => CORR[v] || '', font: { size: 9 } }
             }
           }
         }
@@ -1344,9 +1438,13 @@
       const header = document.getElementById('compareHeaderRow');
       const tbody = document.querySelector('#compareTable tbody');
       // Rebuild header: Indicator | <County1> | <County2> | ... | Best
+      // The per-county number in each cell is the UNWEIGHTED mean of
+      // that county's tract values. Weighting by tract population needs
+      // a total_pop field that isn't published yet (Brief 2 Phase C1).
+      // Labeling it in the header keeps the column honest until then.
       header.innerHTML = '<th>Indicator</th>' +
-        selected.map(c => `<th class="num">${c}</th>`).join('') +
-        '<th class="num">Best</th>';
+        selected.map(c => `<th class="num" title="Unweighted mean of tract values">${c}<br><span style="font-weight:400; font-size:10px; color:#9ca3af;">unweighted mean</span></th>`).join('') +
+        '<th class="num" title="County with the most-favorable unweighted mean, given the indicator direction">Best</th>';
       tbody.innerHTML = '';
       if (selected.length === 0) {
         tbody.innerHTML = '<tr><td colspan="99" style="color:#6b7280; padding:16px;">' +
@@ -1361,7 +1459,13 @@
       for (const c of selected) {
         byCounty[c] = state.features.filter(f => f.county_name === c);
       }
-      for (const ind of INDICATORS) {
+      // Only iterate indicators that are actually published — the full
+      // INDICATORS constant is aspirational and would produce all-null
+      // rows for the ~40 that haven't been added to the layer yet.
+      const indicatorList = state.publishedIndicators && state.publishedIndicators.length
+        ? state.publishedIndicators
+        : INDICATORS;
+      for (const ind of indicatorList) {
         const values = selected.map(c => avg(byCounty[c], ind.id));
         // Best (favorable) county for this indicator
         let bestName = '—';
@@ -1389,6 +1493,32 @@
     function renderTrends() {
       const field = state.indA, dfield = field + '_d5';
       const ind = INDICATORS.find(i => i.id === field);
+      // If no 5-year delta exists for this indicator (either it isn't
+      // published or the source doesn't emit deltas — PLACES model-based
+      // estimates fall in the latter bucket), show an explanatory empty
+      // state in both panels rather than a blank canvas. See Brief 2 A1
+      // and C2.
+      const hasDelta = state.publishedDeltaIds
+        ? state.publishedDeltaIds.has(field)
+        : (state.presentFields ? state.presentFields.has(dfield) : true);
+      if (!hasDelta) {
+        document.getElementById('trendMeta').innerHTML =
+          `<b>${ind?.label ?? field}</b> · no 5-year change available for this indicator on the published layer.`;
+        for (const key of ['trend','trendHist']) {
+          if (state.charts[key]) { state.charts[key].destroy(); state.charts[key] = null; }
+        }
+        for (const id of ['trendChart','trendHistogram']) {
+          const c = document.getElementById(id);
+          if (c) {
+            const g = c.getContext('2d');
+            g.clearRect(0, 0, c.width, c.height);
+            g.fillStyle = '#9ca3af'; g.font = '13px system-ui';
+            g.textAlign = 'center'; g.textBaseline = 'middle';
+            g.fillText('5-year change not published for this indicator', c.width / 2, c.height / 2);
+          }
+        }
+        return;
+      }
       const counties = selectedCounties();
       const pts = state.features.filter(f =>
         counties.has(f.county_name) &&
@@ -1474,6 +1604,12 @@
       const field = state.indA;
       const dfield = field + '_d5';
       const ind = INDICATORS.find(i => i.id === field);
+      // Same delta-availability check as renderTrends: if there's no
+      // _d5 field on the layer for this indicator, render "—" in muted
+      // grey rather than "0.0" (which is factually wrong).
+      const hasDelta = state.publishedDeltaIds
+        ? state.publishedDeltaIds.has(field)
+        : (state.presentFields ? state.presentFields.has(dfield) : true);
       const counties = selectedCounties();
       const visible = state.features.filter(f =>
         counties.has(f.county_name) &&
@@ -1496,11 +1632,14 @@
             if (isBot) tr.classList.add('worst-tract');
           }
         }
-        const d = r[dfield];
+        const d = hasDelta ? r[dfield] : null;
+        const deltaCell = hasDelta
+          ? `<td class="num">${fmtDelta(d, ind)}</td>`
+          : `<td class="num" style="color:#9ca3af;" title="5-year change not published for this indicator">—</td>`;
         tr.innerHTML = `
           <td>${i+1}</td><td>${r.tract_geoid}</td><td>${r.county_name}</td>
           <td class="num">${fmt(r[field], ind)}</td>
-          <td class="num">${fmtDelta(d, ind)}</td>`;
+          ${deltaCell}`;
         tbody.appendChild(tr);
       });
     }
@@ -1517,9 +1656,18 @@
     }
 
     (async function boot() {
-      populateIndicatorSelects();
+      // Fetch FIRST so populateIndicatorSelects() can restrict the
+      // dropdown to indicators that actually exist on the layer. If the
+      // fetch fails we still render a usable error state and populate
+      // the dropdown from the aspirational INDICATORS list so viewers
+      // can at least see what the app is intended to expose.
       try { await fetchFeatures(); }
-      catch (e) { document.getElementById('status').textContent = 'Data fetch failed: ' + e.message; return; }
+      catch (e) {
+        document.getElementById('status').textContent = 'Data fetch failed: ' + e.message;
+        populateIndicatorSelects();
+        return;
+      }
+      populateIndicatorSelects();
       populateCounties();
       loadMap();
       updateAll();
