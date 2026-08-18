@@ -111,7 +111,29 @@ def _csv_numeric_violations(csv_path: Path) -> list[str]:
         "suppressed_count",
     }
     bad: list[str] = []
-    for i, row in enumerate(reader):
+    rows = list(reader)
+    # Brief 5 S7 adds a plain-label second header row between the
+    # machine-name header and the data (e.g. "Value", "% of households",
+    # "Tract ID"). Detect and skip it: if row 0's numeric columns are
+    # all non-parseable strings, treat it as the plain-label row.
+    if rows:
+        first = rows[0]
+        vals = [
+            (first.get(c) or "").strip()
+            for c in numeric_cols
+            if c in first and (first.get(c) or "").strip()
+        ]
+
+        def _is_num(s: str) -> bool:
+            try:
+                float(s)
+                return True
+            except ValueError:
+                return False
+
+        if vals and not any(_is_num(v) for v in vals):
+            rows = rows[1:]
+    for i, row in enumerate(rows):
         for col in numeric_cols & row.keys():
             v = (row[col] or "").strip()
             if not v:
@@ -179,6 +201,15 @@ def _brief3_extra(page, dest_dir: Path) -> dict:
         page.click("#tab-overview")
         page.wait_for_timeout(300)
         before = page.eval_on_selector("#indicatorSelect", "e => e.value")
+        # On mobile (<=800px) the sidebar is an off-canvas drawer, so
+        # the county checkbox is not in the viewport until #filtersToggle
+        # is clicked. Open the drawer first if the toggle is displayed.
+        toggle_visible = page.eval_on_selector(
+            "#filtersToggle", "e => window.getComputedStyle(e).display !== 'none'",
+        )
+        if toggle_visible:
+            page.click("#filtersToggle")
+            page.wait_for_timeout(350)
         # Uncheck one county — must not silently swap indA.
         cbx = page.query_selector("#countyList input[type=checkbox]")
         if cbx:
