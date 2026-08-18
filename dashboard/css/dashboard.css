@@ -199,7 +199,30 @@
        grid item shrinks to fit the ArcGIS canvas's intrinsic
        width (which stayed at its last-render size), and 1fr never
        expands. See PR #19 write-up for the full trace. */
-    #mapView { background: #eef2f7; border-radius: 6px; position: relative; grid-row: 1; grid-column: 1; min-height: 420px; min-width: 0; overflow: hidden; }
+    /* Canonical width AND height on #mapView is essential. The
+       previous fix (min-width:0) got the container to grow
+       horizontally, but ArcGIS's inner .esri-view element collapsed
+       to height:0 whenever the parent used min-height rather than an
+       explicit height (see diagnostic css=295x0 in PR #19 comments).
+       height:100% + min-height:420px gives the map cell a real
+       height in the grid row AND a floor if the row shrinks. */
+    #mapView {
+      background: #eef2f7; border-radius: 6px; position: relative;
+      grid-row: 1; grid-column: 1;
+      height: 100%; min-height: 420px;
+      width: 100%;  min-width: 0;
+      overflow: hidden;
+    }
+    /* Belt-and-braces: force ArcGIS's inner view / canvas layers to
+       fill the container. If any of them get a stale inline height
+       from a tab-hide cycle, this !important overrides it. */
+    #mapView .esri-view,
+    #mapView .esri-view-root,
+    #mapView .esri-view-surface,
+    #mapView canvas {
+      width: 100% !important;
+      height: 100% !important;
+    }
     .kpi-panel { background: white; border-radius: 6px; padding: 14px; grid-row: 1; grid-column: 2; overflow-y: auto; }
     .chart-panel { background: white; border-radius: 6px; padding: 12px 16px; overflow: hidden; display: flex; flex-direction: column; min-height: 340px; }
     .chart-panel.wide { grid-row: 2; grid-column: 1 / 3; }
