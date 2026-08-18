@@ -535,27 +535,68 @@
     // Map
     let mapModules = null;
     function loadMap() {
+      const loadingDiv = document.getElementById('mapLoading');
+      // Fallback: hide the loading overlay after 20s no matter what, so
+      // a stuck ArcGIS init doesn't leave the map area unusable. If the
+      // map is legit still initializing, users see the empty gray canvas
+      // instead of a permanent overlay — better than a wall of nothing.
+      const failTimer = setTimeout(() => {
+        loadingDiv.innerHTML = 'Map failed to initialize — check browser console (Cmd+Option+I). '
+                             + 'Try a hard refresh (Cmd+Shift+R).';
+        loadingDiv.style.background = 'rgba(254,242,242,0.95)';
+        loadingDiv.style.color = '#991b1b';
+      }, 20000);
+
+      if (typeof require === 'undefined') {
+        clearTimeout(failTimer);
+        loadingDiv.innerHTML = 'ArcGIS SDK failed to load (js.arcgis.com blocked?). Hard refresh or try a different network.';
+        loadingDiv.style.background = 'rgba(254,242,242,0.95)';
+        loadingDiv.style.color = '#991b1b';
+        return;
+      }
+
       require([
         'esri/Map','esri/views/MapView','esri/layers/FeatureLayer',
         'esri/smartMapping/renderers/color'
       ], (Map, MapView, FeatureLayer, colorRendererCreator) => {
-        mapModules = { Map, MapView, FeatureLayer, colorRendererCreator };
-        const layer = new FeatureLayer({
-          url: LAYER_URL, outFields: ['*'],
-          popupTemplate: {
-            title: 'Tract {tract_geoid} — {county_name}',
-            content: [{ type: 'fields', fieldInfos: INDICATORS.map(i => ({
-              fieldName: i.id, label: i.label, format: { digitSeparator: true, places: 1 }
-            })) }]
-          }
-        });
-        state.layer = layer;
-        const map = new Map({ basemap: 'gray-vector', layers: [layer] });
-        state.mapView = new MapView({ container: 'mapView', map, center: [-85.3, 35.6], zoom: 7 });
-        state.mapView.when(() => {
-          document.getElementById('mapLoading').style.display = 'none';
-          restyleMap();
-        });
+        try {
+          mapModules = { Map, MapView, FeatureLayer, colorRendererCreator };
+          const layer = new FeatureLayer({
+            url: LAYER_URL, outFields: ['*'],
+            popupTemplate: {
+              title: 'Tract {tract_geoid} — {county_name}',
+              content: [{ type: 'fields', fieldInfos: INDICATORS.map(i => ({
+                fieldName: i.id, label: i.label, format: { digitSeparator: true, places: 1 }
+              })) }]
+            }
+          });
+          state.layer = layer;
+          const map = new Map({ basemap: 'gray-vector', layers: [layer] });
+          state.mapView = new MapView({ container: 'mapView', map, center: [-85.3, 35.6], zoom: 7 });
+          state.mapView.when(() => {
+            clearTimeout(failTimer);
+            loadingDiv.style.display = 'none';
+            restyleMap();
+          }, (err) => {
+            clearTimeout(failTimer);
+            console.error('MapView init error:', err);
+            loadingDiv.innerHTML = 'Map error: ' + (err?.message || err);
+            loadingDiv.style.background = 'rgba(254,242,242,0.95)';
+            loadingDiv.style.color = '#991b1b';
+          });
+        } catch (e) {
+          clearTimeout(failTimer);
+          console.error('loadMap exception:', e);
+          loadingDiv.innerHTML = 'Map init exception: ' + e.message;
+          loadingDiv.style.background = 'rgba(254,242,242,0.95)';
+          loadingDiv.style.color = '#991b1b';
+        }
+      }, (err) => {
+        clearTimeout(failTimer);
+        console.error('ArcGIS SDK require() failed:', err);
+        loadingDiv.innerHTML = 'ArcGIS SDK modules failed to load: ' + (err?.message || err);
+        loadingDiv.style.background = 'rgba(254,242,242,0.95)';
+        loadingDiv.style.color = '#991b1b';
       });
     }
 
