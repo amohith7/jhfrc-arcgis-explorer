@@ -281,18 +281,28 @@
           </div>
         </div>
 
-        <!-- COMPARE COUNTIES -->
+        <!-- COMPARE COUNTIES (multi-select) -->
         <div class="view" id="view-compare">
           <div class="analysis-view">
             <div class="analysis-panel">
-              <h3>Compare two counties, side by side</h3>
-              <div class="split-controls">
-                <div><label>County A</label><select id="cmpCountyA"></select></div>
-                <div><label>County B</label><select id="cmpCountyB"></select></div>
+              <h3>Compare counties side by side</h3>
+              <div class="footnote" style="margin-bottom:10px;">
+                Pick two or more counties. Each becomes a column. The
+                <b>Best</b> column highlights the county with the most
+                favorable value for that indicator (only for indicators
+                with a defined direction). Numbers are county averages
+                across all tracts.
+              </div>
+              <div id="cmpCountyPicker" class="county-list" style="max-height:140px; margin-bottom:12px;">
+                <!-- checkboxes populated dynamically -->
+              </div>
+              <div class="county-actions" style="max-width:280px; margin-bottom:12px;">
+                <button id="cmpAll">Select all</button>
+                <button id="cmpNone">Clear</button>
               </div>
               <div style="overflow:auto; max-height:520px;">
                 <table class="compare-table" id="compareTable">
-                  <thead><tr><th>Indicator</th><th class="num">County A</th><th class="num">County B</th><th class="num">Difference</th><th class="num">Winner</th></tr></thead>
+                  <thead><tr id="compareHeaderRow"><th>Indicator</th></tr></thead>
                   <tbody></tbody>
                 </table>
               </div>
@@ -477,27 +487,34 @@
 
     function populateCounties() {
       const box = document.getElementById('countyList');
-      const cmpA = document.getElementById('cmpCountyA');
-      const cmpB = document.getElementById('cmpCountyB');
+      const cmpBox = document.getElementById('cmpCountyPicker');
       const sorted = [...state.counties].sort();
-      for (const c of sorted) {
+      sorted.forEach((c, i) => {
+        // Sidebar county filter (drives every view)
         const lbl = document.createElement('label');
         lbl.innerHTML = `<input type="checkbox" value="${c}" checked> ${c}`;
         box.appendChild(lbl);
         lbl.querySelector('input').addEventListener('change', updateAll);
-        for (const s of [cmpA, cmpB]) {
-          const o = document.createElement('option'); o.value = c; o.textContent = c;
-          s.appendChild(o);
-        }
-      }
-      cmpA.value = sorted[0]; cmpB.value = sorted[sorted.length - 1];
-      cmpA.addEventListener('change', renderCompare);
-      cmpB.addEventListener('change', renderCompare);
+        // Compare tab checklist — default: first + last only, so the
+        // table isn't overwhelming on first visit but user can enable
+        // more with a click.
+        const cmpLbl = document.createElement('label');
+        const preChecked = (i === 0 || i === sorted.length - 1) ? 'checked' : '';
+        cmpLbl.innerHTML = `<input type="checkbox" value="${c}" ${preChecked}> ${c}`;
+        cmpBox.appendChild(cmpLbl);
+        cmpLbl.querySelector('input').addEventListener('change', renderCompare);
+      });
       document.getElementById('selectAll').addEventListener('click', () => {
         box.querySelectorAll('input').forEach(i => i.checked = true); updateAll();
       });
       document.getElementById('selectNone').addEventListener('click', () => {
         box.querySelectorAll('input').forEach(i => i.checked = false); updateAll();
+      });
+      document.getElementById('cmpAll').addEventListener('click', () => {
+        cmpBox.querySelectorAll('input').forEach(i => i.checked = true); renderCompare();
+      });
+      document.getElementById('cmpNone').addEventListener('click', () => {
+        cmpBox.querySelectorAll('input').forEach(i => i.checked = false); renderCompare();
       });
     }
 
@@ -542,8 +559,12 @@
 
       require([
         'esri/Map','esri/views/MapView','esri/layers/FeatureLayer',
-        'esri/smartMapping/renderers/color'
-      ], (Map, MapView, FeatureLayer, colorRendererCreator) => {
+        'esri/smartMapping/renderers/color',
+        'esri/widgets/BasemapGallery','esri/widgets/Expand',
+        'esri/widgets/Legend','esri/widgets/Home','esri/widgets/Search',
+        'esri/widgets/ScaleBar','esri/widgets/Fullscreen'
+      ], (Map, MapView, FeatureLayer, colorRendererCreator,
+          BasemapGallery, Expand, Legend, Home, Search, ScaleBar, Fullscreen) => {
         try {
           mapModules = { Map, MapView, FeatureLayer, colorRendererCreator };
           const layer = new FeatureLayer({
@@ -561,6 +582,32 @@
           state.mapView.when(() => {
             clearTimeout(failTimer);
             loadingDiv.style.display = 'none';
+            // Map widgets — polish + power-user tools.
+            // Basemap picker (top-right, expands on click)
+            const basemapGallery = new BasemapGallery({ view: state.mapView });
+            const basemapExpand = new Expand({
+              view: state.mapView, content: basemapGallery,
+              expandTooltip: 'Change basemap', group: 'top-right',
+              expandIcon: 'basemap',
+            });
+            state.mapView.ui.add(basemapExpand, 'top-right');
+            // Legend (top-right, expands on click)
+            const legend = new Legend({ view: state.mapView });
+            const legendExpand = new Expand({
+              view: state.mapView, content: legend,
+              expandTooltip: 'Show legend', group: 'top-right',
+              expandIcon: 'legend', expanded: true,
+            });
+            state.mapView.ui.add(legendExpand, 'top-right');
+            // Home button (zoom back to initial extent)
+            state.mapView.ui.add(new Home({ view: state.mapView }), 'top-left');
+            // Search widget (find a tract GEOID or place)
+            state.mapView.ui.add(new Search({
+              view: state.mapView, popupEnabled: false, resultGraphicEnabled: true,
+            }), 'top-left');
+            // Scale bar + fullscreen
+            state.mapView.ui.add(new ScaleBar({ view: state.mapView, unit: 'imperial' }), 'bottom-left');
+            state.mapView.ui.add(new Fullscreen({ view: state.mapView }), 'bottom-right');
             restyleMap();
           }, (err) => {
             clearTimeout(failTimer);
@@ -813,38 +860,49 @@
     }
 
     // ─────────────────────────────────────────────────────────────────────
-    // Compare two counties
+    // Compare N counties (multi-select)
     function renderCompare() {
-      const a = document.getElementById('cmpCountyA').value;
-      const b = document.getElementById('cmpCountyB').value;
+      const selected = [...document.querySelectorAll('#cmpCountyPicker input:checked')]
+        .map(i => i.value);
+      const header = document.getElementById('compareHeaderRow');
       const tbody = document.querySelector('#compareTable tbody');
+      // Rebuild header: Indicator | <County1> | <County2> | ... | Best
+      header.innerHTML = '<th>Indicator</th>' +
+        selected.map(c => `<th class="num">${c}</th>`).join('') +
+        '<th class="num">Best</th>';
       tbody.innerHTML = '';
-      const aRows = state.features.filter(f => f.county_name === a);
-      const bRows = state.features.filter(f => f.county_name === b);
+      if (selected.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="99" style="color:#6b7280; padding:16px;">' +
+          'Pick at least one county to compare.</td></tr>';
+        return;
+      }
       const avg = (rows, k) => {
         const v = rows.map(r => r[k]).filter(x => x != null && !isNaN(x));
-        return v.length ? v.reduce((x,y)=>x+y,0)/v.length : null;
+        return v.length ? v.reduce((x,y) => x + y, 0) / v.length : null;
       };
-      document.querySelector('#compareTable thead th:nth-child(2)').textContent = a;
-      document.querySelector('#compareTable thead th:nth-child(3)').textContent = b;
+      const byCounty = {};
+      for (const c of selected) {
+        byCounty[c] = state.features.filter(f => f.county_name === c);
+      }
       for (const ind of INDICATORS) {
-        const va = avg(aRows, ind.id);
-        const vb = avg(bRows, ind.id);
-        const diff = va != null && vb != null ? va - vb : null;
-        let winner = '—', winClass = 'same';
-        if (va != null && vb != null && ind.higherIsWorse != null) {
-          const aBetter = ind.higherIsWorse ? va < vb : va > vb;
-          if (Math.abs(va-vb) < 0.01) { winner = 'tie'; }
-          else if (aBetter) { winner = a; winClass = 'better'; }
-          else              { winner = b; winClass = 'better'; }
+        const values = selected.map(c => avg(byCounty[c], ind.id));
+        // Best (favorable) county for this indicator
+        let bestName = '—';
+        if (ind.higherIsWorse != null) {
+          const nonNull = values
+            .map((v, i) => ({ v, name: selected[i] }))
+            .filter(o => o.v != null);
+          if (nonNull.length >= 2) {
+            const best = ind.higherIsWorse
+              ? nonNull.reduce((a, b) => a.v <= b.v ? a : b)
+              : nonNull.reduce((a, b) => a.v >= b.v ? a : b);
+            bestName = best.name;
+          }
         }
         const tr = document.createElement('tr');
-        tr.innerHTML = `
-          <td>${ind.label}</td>
-          <td class="num">${fmt(va)}</td>
-          <td class="num">${fmt(vb)}</td>
-          <td class="num">${diff != null ? (diff > 0 ? '+' : '') + fmt(diff) : '—'}</td>
-          <td class="num ${winClass}">${winner}</td>`;
+        const cells = values.map(v => `<td class="num">${fmt(v)}</td>`).join('');
+        const bestCls = bestName !== '—' ? 'better' : 'same';
+        tr.innerHTML = `<td>${ind.label}</td>${cells}<td class="num ${bestCls}">${bestName}</td>`;
         tbody.appendChild(tr);
       }
     }
