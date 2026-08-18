@@ -42,51 +42,80 @@ TIGER_GPKG = REPORTS_ROOT / "data" / "census_tracts.gpkg"
 # 10-char field name; label is the human-readable name from the
 # reports pipeline's XML output.
 HEADLINE_INDICATORS: list[tuple[str, str]] = [
+    # Labels MUST match exactly what appears in the source XML
+    # (indicator names include unicode dashes/percent signs). If a
+    # label doesn't match, the pivot silently drops the indicator.
     # Economic
     ("pov_below", "Below Poverty Line (%)"),
     ("hh_snap", "Households Receiving Food Stamps (%)"),
     ("hh_pubasst", "Households Receiving Public Assistance (%)"),
     ("emp_adults", "Employed Adults (%)"),
-    ("not_labor", "Not in the Labor Force (%)"),
+    ("not_labor", "Not in Labor Force (%)"),
     ("mhi", "Median Household Income ($)"),
     ("mpci", "Mean Per Capita Income ($)"),
-    ("gini", "Gini Index"),
+    ("gini", "Gini Index (Income Inequality)"),
     # Education
-    ("edu_lths", "Less Than High School Education (%)"),
+    ("edu_lths", "Less than High School Education (%)"),
     ("edu_posths", "Any Post-High School Education (%)"),
+    ("edu_assoc", "Associate's Degree (%)"),
     ("edu_ba", "Bachelor's Degree (%)"),
-    ("edu_grad", "Graduate or Professional Degree (%)"),
-    ("youth_dis", "Youth Disconnection (%)"),
-    # Healthcare
+    ("edu_grad", "Graduate/Professional Degree (%)"),
+    ("youth_dis", "Teens (Ages 16–19) Not in School & Unemployed (%)"),
+    # Healthcare — coverage
     ("any_disab", "Any Disability (%)"),
-    ("no_insur", "No Health Insurance (%)"),
+    ("no_insur", "Uninsured (Ages 18–64) (%)"),
+    ("private_ins", "Private Insurance (All Ages) (%)"),
+    ("medicaid", "Medicaid Coverage (All Ages) (%)"),
+    # Healthcare — conditions
     ("hh_diab", "Diabetes (%)"),
     ("hh_asthma", "Asthma (%)"),
     ("hh_heart", "Coronary Heart Disease (%)"),
-    ("hh_bp", "Taking Blood Pressure Medication(%)"),
-    ("ph_poor14", "Self-Reported Physical Health (% ≥14 Days Poor)"),
-    ("mh_poor14", "Self-Reported Mental Health (% ≥14 Days Poor)"),
+    ("hh_bp", "High Blood Pressure (%)"),
+    ("hh_bpmed", "Taking Blood Pressure Medication(%)"),
+    ("hh_chol", "High Cholesterol (%)"),
+    ("hh_arthr", "Arthritis (%)"),
+    ("hh_copd", "Chronic Obstructive Pulmonary Disease (COPD) (%)"),
+    ("hh_stroke", "Stroke (%)"),
+    # Healthcare — self-reported + behaviors
+    ("ph_poor14", "Poor Physical Health (≥14 Days) (%)"),
+    ("mh_poor14", "Poor Mental Health (≥14 Days) (%)"),
+    ("fair_hlth", "Fair/Poor Self-Reported Health (%)"),
     ("smoke", "Smoking (%)"),
+    ("binge", "Binge Drinking (%)"),
     ("no_activ", "No Leisure-Time Physical Activity(%)"),
     ("obesity", "Obesity (%)"),
-    # Physical Infrastructure
-    ("bb_access", "Broadband Access (%)"),
-    ("no_intnet", "No Internet Access (%)"),
+    ("sleep_lt7", "Sleeping Less than 7 Hours (%)"),
+    # Physical Infrastructure — housing
     ("med_rent", "Median Gross Rent ($)"),
     ("med_home", "Median Home Value ($)"),
-    ("cost_burd", "Housing Cost Burden (%)"),
-    ("owner_occ", "Owner-Occupied (%)"),
+    ("owner_occ", "Owner-Occupied Households (%)"),
+    ("renter_occ", "Renter-Occupied Households (%)"),
     ("vacant", "Vacant Housing Units (%)"),
-    ("no_veh", "No Vehicle Available (%)"),
+    ("cost_owner", "Owners Paying ≥30% of Income (%)"),
+    ("cost_rent", "Renters Paying ≥30% of Income (%)"),
+    ("housing_old", "Housing Built Before 1979 (%)"),
+    # Physical Infrastructure — digital + transportation
+    ("bb_access", "Households with Broadband Access (%)"),
+    ("no_intnet", "Households without Internet Access (%)"),
+    ("no_veh", "Households without a Vehicle (%)"),
     ("transit", "Public Transit Commuters (%)"),
-    # Social
-    ("age_u18", "Population Under 18 (%)"),
-    ("age_65p", "Population 65 and Older (%)"),
+    ("walk", "Workers Walking to Work (%)"),
+    # Social — age
+    ("age_65p", "Population Age 65+ (%)"),
+    ("age_18_64", "Population Age 18–64 (%)"),
     ("med_age", "Median Age"),
-    ("single_p", "Single-Parent Households (%)"),
-    ("live_alon", "Living Alone (%)"),
-    ("foreign", "Foreign Born (%)"),
-    ("lang_span", "Speak Spanish at Home (%)"),
+    # Social — households
+    ("single_p", "Single-Parent Families (%)"),
+    ("live_alon_65", "Age 65+ Living Alone (%)"),
+    ("hh_size", "Average Household Size"),
+    ("married", "Married (%)"),
+    # Social — race / ethnicity / language
+    ("hisp", "Hispanic (%)"),
+    ("black", "Black / African American (%)"),
+    ("white", "White (%)"),
+    ("asian", "Asian (%)"),
+    ("foreign", "Foreign Born Population (%)"),
+    ("lang_span", "Spanish Speakers (Age 5+) (%)"),
 ]
 
 
