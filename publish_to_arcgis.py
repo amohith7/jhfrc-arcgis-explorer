@@ -87,6 +87,7 @@ def publish(
     tags: list[str] | None = None,
     snippet: str = DEFAULT_SNIPPET,
     overwrite_existing: bool = True,
+    target_sr: int = 4326,
 ) -> None:
     tags = tags or DEFAULT_TAGS
     upload = _pick_upload_path()
@@ -120,15 +121,31 @@ def publish(
         published = existing
     else:
         # Fresh publish: create Item, publish to Feature Service.
+        # targetSR pinned to the source GPKG's CRS (WGS84, wkid 4326)
+        # so AGOL does NOT silently reproject to Web Mercator and end
+        # up with an extent tagged 102100 but populated with lat/lon
+        # numbers — the metadata mismatch that broke tract rendering
+        # on v4 (SDK reads extent as a ~1.6 meter box at (0,0) and
+        # never fetches tiles for the TN view).
         item_props = {
             "type": "GeoPackage" if upload.suffix == ".gpkg" else "Shapefile",
             "title": title,
             "tags": ",".join(tags),
             "snippet": snippet,
         }
-        added = gis.content.add(item_props, str(upload))
-        print(f"  Uploaded item: {added.id}")
-        published = added.publish()
+        # AGOL rejects (409) if an item with the same *filename* already
+        # exists in this user's content. Derive a unique upload name
+        # from the title so re-runs against the same GPKG land as
+        # distinct items (v3, v4, v5 all coexist without collision).
+        import re as _re
+
+        safe = _re.sub(r"[^A-Za-z0-9]+", "_", title).strip("_").lower()
+        upload_name = f"{safe}{upload.suffix}"
+        added = gis.content.add(item_props, str(upload), filename=upload_name)
+        print(f"  Uploaded item: {added.id}  (name: {upload_name})")
+        publish_params = {"targetSR": {"wkid": target_sr}}
+        print(f"  Publishing with targetSR={target_sr} (matches source GPKG)")
+        published = added.publish(publish_parameters=publish_params)
         print(f"  Published feature service: {published.id}")
 
     print(f"\nItem URL:    {published.homepage}")
@@ -158,13 +175,26 @@ def main(argv=None) -> int:
         action="store_true",
         help="Force a fresh publish even if a matching item exists.",
     )
+    ap.add_argument(
+        "--target-sr",
+        type=int,
+        default=4326,
+        help=(
+            "Feature service spatial reference wkid (default 4326 = WGS84). "
+            "Only used on fresh publish. Passing anything other than 4326 "
+            "risks the extent-metadata mismatch that broke v4."
+        ),
+    )
     args = ap.parse_args(argv)
 
     tags = list(DEFAULT_TAGS)
     if args.tag:
         tags.extend(args.tag)
     publish(
-        title=args.title, tags=tags, overwrite_existing=not args.no_overwrite,
+        title=args.title,
+        tags=tags,
+        overwrite_existing=not args.no_overwrite,
+        target_sr=args.target_sr,
     )
     return 0
 
