@@ -1,0 +1,454 @@
+:root {
+      --navy: #112E51;
+      --navy-light: #1e4472;
+      --gold: #FDB736;
+      --red:  #dc2626;
+      --green:#059669;
+      --gray-50: #f5f7fa;
+      --gray-100: #edf1f7;
+      --gray-200: #e5e7eb;
+      --gray-300: #d1d5db;
+      --gray-500: #9ca3af;
+      --gray-600: #6b7280;
+      --gray-800: #1f2937;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background: var(--gray-50);
+      color: var(--gray-800);
+      overflow: hidden;
+      height: 100vh;
+      height: 100dvh;              /* iOS Safari toolbar-safe */
+      font-size: 13px;
+    }
+    .app {
+      display: grid;
+      /* Explicit auto row for any late-added elements (defensive against
+         a stray sibling silently absorbing the 1fr row, which is what
+         happened when #sidebarBackdrop was previously nested inside
+         .app — see Brief 2 B2). */
+      grid-template-rows: 72px 40px 1fr auto;
+      height: 100vh;
+      height: 100dvh;
+    }
+    /* Mobile-only chrome. Base rules keep them hidden at every viewport
+       so the desktop tab bar stays uncluttered (Brief 2 B1) and the
+       backdrop doesn't steal a grid row (Brief 2 B2). Mobile overrides
+       further down turn them on. */
+    #filtersToggle { display: none; }
+    #sidebarBackdrop { display: none; }
+    header {
+      background: linear-gradient(90deg, var(--navy) 0%, var(--navy-light) 100%);
+      color: white;
+      padding: 8px 20px;
+      display: grid;
+      grid-template-columns: 1fr auto 1fr;
+      align-items: center;
+      column-gap: 18px;
+      border-bottom: 3px solid var(--gold);
+    }
+    header .logo {
+      justify-self: start;
+      height: 40px;                /* fits within the 72px header row with breathing room */
+      width: auto;
+      max-width: 260px;            /* prevents an over-wide SVG from crowding the title */
+      object-fit: contain;
+      display: block;
+    }
+    header .titles h1 { font-size: 17px; }
+    header .titles .subtitle { font-size: 12px; }
+    header .titles { justify-self: center; text-align: center; }
+    header .titles h1 { margin: 0; font-size: 16px; font-weight: 600; line-height: 1.15; }
+    header .titles .subtitle { color: #d1d5db; font-size: 11px; margin-top: 2px; }
+    header .status { justify-self: end; font-size: 11px; color: #d1d5db; background: rgba(253,183,54,0.12); border: 1px solid rgba(253,183,54,0.35); padding: 5px 10px; border-radius: 4px; white-space: nowrap; }
+    /* Inline "link-style" button used in the subtitle for the About
+       trigger and elsewhere. Keeps semantics as <button> for
+       keyboard/screen-reader users while reading as a link. */
+    .link-btn {
+      background: none; border: 0; padding: 0;
+      color: #fdb736; font: inherit; cursor: pointer;
+      text-decoration: underline; text-underline-offset: 2px;
+    }
+    .link-btn:hover, .link-btn:focus { color: #ffcc66; outline: none; }
+
+    /* About panel — appears as a modal dialog centered on the viewport.
+       Kept lightweight (no framework); dismissible via close button or
+       Escape (see JS). Brief 3 Amendments A6. */
+    #aboutPanel {
+      position: fixed; inset: 0;
+      background: rgba(0,0,0,0.55);
+      z-index: 2000;
+      display: flex; align-items: center; justify-content: center;
+      padding: 20px;
+    }
+    #aboutPanel[hidden] { display: none; }
+    .about-inner {
+      background: white;
+      color: #111;
+      max-width: 640px; max-height: calc(100dvh - 40px);
+      overflow: auto;
+      padding: 24px 28px 20px;
+      border-radius: 6px;
+      box-shadow: 0 12px 40px rgba(0,0,0,0.35);
+      position: relative;
+      font-size: 14px; line-height: 1.5;
+    }
+    .about-inner h2 { margin: 0 0 12px; font-size: 18px; font-weight: 700; color: var(--navy); }
+    .about-inner p { margin: 0 0 12px; }
+    .about-inner a { color: var(--navy); }
+    .about-close {
+      position: absolute; top: 8px; right: 12px;
+      background: none; border: 0;
+      font-size: 24px; line-height: 1;
+      color: #6b7280; cursor: pointer;
+      padding: 4px 8px;
+    }
+    .about-close:hover, .about-close:focus { color: var(--navy); outline: none; }
+
+    /* Info-icon next to indicator selectors (Brief 3 F1). Small
+       button reveals a popover with the dictionary entry for the
+       currently-selected indicator. */
+    .info-btn {
+      background: none; border: 1px solid var(--gray-300);
+      color: var(--navy);
+      width: 18px; height: 18px; padding: 0;
+      border-radius: 50%;
+      font-size: 11px; line-height: 1;
+      cursor: pointer;
+      margin-left: 4px;
+      vertical-align: middle;
+      display: inline-flex; align-items: center; justify-content: center;
+    }
+    .info-btn:hover, .info-btn:focus { background: var(--navy); color: white; outline: none; }
+    .info-popover {
+      position: absolute;
+      z-index: 1500;
+      background: white; color: #111;
+      border: 1px solid var(--gray-300);
+      border-radius: 4px;
+      box-shadow: 0 6px 20px rgba(0,0,0,0.18);
+      padding: 12px 14px;
+      max-width: 320px;
+      font-size: 12px; line-height: 1.45;
+    }
+    .info-popover[hidden] { display: none; }
+    .info-popover h4 { margin: 0 0 6px; font-size: 13px; font-weight: 700; color: var(--navy); }
+    .info-popover dl { margin: 6px 0 0; font-size: 11px; }
+    .info-popover dt { color: #6b7280; font-weight: 600; margin-top: 6px; }
+    .info-popover dd { margin: 2px 0 0 0; }
+    /* Tabs */
+    .tabs { display: flex; background: white; border-bottom: 1px solid var(--gray-300); padding: 0 16px; }
+    /* The Filters button sits at the start; the actual tab list is a
+       flex row so the tabs continue to render inline. Semantics-only
+       change (Brief 2 C4). */
+    .tab-list { display: flex; align-items: stretch; flex: 1 1 auto; min-width: 0; }
+    /* Keyboard focus ring — visible only for keyboard users, per :focus-visible */
+    .tab:focus-visible { outline: 2px solid var(--navy); outline-offset: -2px; }
+
+    /* CSV download button (Brief 2 C5). Small, secondary — the panel
+       title is the primary affordance; this sits at the right end of
+       the same row. */
+    .csv-btn {
+      background: var(--navy); color: white; border: 0;
+      padding: 4px 10px; font-size: 11px; font-weight: 600;
+      border-radius: 3px; cursor: pointer; letter-spacing: 0.02em;
+    }
+    .csv-btn:hover { background: var(--navy-light); }
+    .csv-btn:focus-visible { outline: 2px solid var(--navy-light); outline-offset: 2px; }
+    .tab {
+      padding: 10px 18px; cursor: pointer;
+      font-size: 13px; font-weight: 500;
+      color: var(--gray-600); border-bottom: 3px solid transparent;
+      margin-bottom: -1px;
+    }
+    .tab:hover { color: var(--navy); }
+    .tab.active { color: var(--navy); border-bottom-color: var(--navy); font-weight: 600; }
+    /* Main content */
+    main { display: grid; grid-template-columns: 280px 1fr; overflow: hidden; }
+    .sidebar {
+      background: white;
+      overflow-y: auto;
+      padding: 16px;
+      border-right: 1px solid var(--gray-300);
+    }
+    .content-area {
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      background: var(--gray-50);
+    }
+    .view { display: none; overflow-y: auto; flex: 1; padding: 0; min-height: 0; }
+    .view.active { display: flex; flex-direction: column; }
+    /* Overview view. Chart panel's row is `minmax(340px, auto)` so
+       the county-average bar chart never squeezes below 340px, but
+       CAN grow if extra height is available. When the sum of map
+       (55dvh) + chart (340px+) exceeds the viewport, .view scrolls
+       instead of crushing either. Brief 3 chart-height feedback. */
+    .overview-grid {
+      display: grid;
+      grid-template-columns: 1fr 380px;
+      grid-template-rows: minmax(420px, 55dvh) minmax(340px, auto);
+      min-height: 100%;
+      gap: 10px;
+      padding: 10px;
+    }
+    #mapView { background: #eef2f7; border-radius: 6px; position: relative; grid-row: 1; grid-column: 1; min-height: 420px; }
+    .kpi-panel { background: white; border-radius: 6px; padding: 14px; grid-row: 1; grid-column: 2; overflow-y: auto; }
+    .chart-panel { background: white; border-radius: 6px; padding: 12px 16px; overflow: hidden; display: flex; flex-direction: column; min-height: 340px; }
+    .chart-panel.wide { grid-row: 2; grid-column: 1 / 3; }
+    .chart-panel h3, .kpi-panel h3, .analysis-panel h3 {
+      margin: 0 0 10px 0; font-size: 12px;
+      color: var(--gray-600); font-weight: 600;
+      text-transform: uppercase; letter-spacing: 0.03em;
+    }
+    /* KPI tiles */
+    .kpis { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 12px; }
+    .kpi {
+      background: var(--gray-100); padding: 10px 12px;
+      border-radius: 6px; border-left: 4px solid var(--navy);
+    }
+    .kpi.tract { grid-column: 1 / 3; border-left-color: var(--gold); }
+    .kpi-label { font-size: 10px; color: var(--gray-600); text-transform: uppercase; letter-spacing: 0.05em; font-weight: 600; margin-bottom: 4px; }
+    .kpi-value { font-size: 22px; font-weight: 700; color: var(--gray-800); }
+    .kpi-value.small { font-size: 14px; }
+    .kpi-sub { font-size: 11px; color: var(--gray-600); margin-top: 2px; word-break: break-word; }
+    /* Ranked list */
+    .ranked { background: var(--gray-100); border-radius: 6px; padding: 8px; max-height: 300px; overflow-y: auto; }
+    .rank-row {
+      display: grid; grid-template-columns: 24px 1fr auto;
+      align-items: center; padding: 6px 8px;
+      border-bottom: 1px solid var(--gray-200); font-size: 12px;
+    }
+    .rank-row:last-child { border-bottom: none; }
+    .rank-row .rank-n { color: var(--gray-600); font-weight: 600; font-size: 11px; }
+    .rank-row .rank-lbl .county { color: var(--gray-600); font-size: 11px; display: block; }
+    .rank-row .rank-val { font-weight: 600; color: var(--navy); font-family: "SF Mono", Consolas, monospace; font-size: 12px; }
+    .rank-row.max-tract { background: rgba(220,38,38,0.06); }
+    .rank-row.min-tract { background: rgba(5,150,105,0.06); }
+    /* Same shading rules for the full ranking table on the Ranking
+       tab. The classes are applied in renderRanking() ONLY when the
+       indicator has a defined direction (higherIsWorse != null). */
+    /* Row-level shading is set on each td (not the tr) so the sticky
+       first column in the mobile layout keeps the same shade instead
+       of painting white over it. Brief 2 B4. */
+    #rankingTable tbody tr.worst-tract td { background: rgba(220,38,38,0.08); }
+    #rankingTable tbody tr.best-tract  td { background: rgba(5,150,105,0.08); }
+    /* Sidebar controls */
+    .section { margin-bottom: 20px; }
+    .section h3 { margin: 0 0 6px 0; font-size: 11px; color: var(--gray-600); font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; }
+    select, input[type=text] {
+      width: 100%; padding: 6px 10px;
+      border: 1px solid var(--gray-300); border-radius: 4px;
+      font-size: 13px; background: white; cursor: pointer;
+    }
+    select:focus, input:focus { outline: 2px solid var(--navy); outline-offset: -1px; }
+    .county-list {
+      max-height: 220px; overflow-y: auto;
+      border: 1px solid var(--gray-300); border-radius: 4px;
+      padding: 4px 0; background: white;
+    }
+    .county-list label {
+      display: flex; align-items: center;
+      padding: 4px 10px; font-size: 13px; cursor: pointer; user-select: none;
+    }
+    .county-list label:hover { background: var(--gray-100); }
+    .county-list input { margin-right: 8px; }
+    .county-actions { display: flex; gap: 8px; margin-bottom: 6px; }
+    .county-actions button {
+      flex: 1; padding: 4px 8px; font-size: 11px;
+      background: white; color: var(--navy);
+      border: 1px solid var(--gray-300); border-radius: 4px; cursor: pointer;
+    }
+    .county-actions button:hover { background: var(--gray-100); }
+    /* Analysis views (correlation, compare, trends) */
+    .analysis-view { padding: 12px; height: 100%; overflow: auto; display: flex; flex-direction: column; gap: 10px; }
+    .analysis-panel { background: white; border-radius: 6px; padding: 14px 16px; }
+    .split-controls {
+      display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 8px;
+    }
+    .split-controls > div label { font-size: 10px; color: var(--gray-600); text-transform: uppercase; font-weight: 600; }
+    /* Compare table */
+    .compare-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+    .compare-table th {
+      text-align: left; padding: 8px 10px;
+      background: var(--gray-100); font-weight: 600;
+      font-size: 11px; text-transform: uppercase; letter-spacing: 0.03em;
+      color: var(--gray-600); position: sticky; top: 0;
+    }
+    .compare-table td { padding: 6px 10px; border-bottom: 1px solid var(--gray-200); }
+    .compare-table td.num { text-align: right; font-family: "SF Mono", Consolas, monospace; }
+    .compare-table td.better { color: var(--green); font-weight: 600; }
+    .compare-table td.worse { color: var(--red); font-weight: 600; }
+    .compare-table td.same { color: var(--gray-600); }
+    /* Responsive table container — fills the available analysis-view
+       height minus a small padding, scrolls both axes when the table
+       has many columns (multi-county compare) or long content. */
+    .compare-scroll {
+      flex: 1 1 auto;
+      min-height: 240px;
+      max-height: calc(100vh - 260px);
+      overflow: auto;
+      -webkit-overflow-scrolling: touch;
+      border: 1px solid var(--gray-200);
+      border-radius: 4px;
+    }
+    .analysis-view { flex: 1; min-height: 0; }
+    .analysis-panel { display: flex; flex-direction: column; min-height: 340px; }
+    /* Charts that should grow with the panel + browser height. Chart
+       min-height raised from 220px to 320px so complex charts (11-
+       county bar with axis titles + tick labels, 12x12 correlation
+       matrix, 20-bin histogram) don't compress into an unreadable
+       strip. If a viewport is short, .view scrolls. Brief 3
+       chart-height feedback. */
+    .chart-box {
+      position: relative;
+      flex: 1 1 auto;
+      min-height: 320px;
+      display: flex;
+    }
+    .chart-box canvas { flex: 1; width: 100% !important; height: 100% !important; }
+    /* Empty-state overlay used when a chart has nothing to render
+       (e.g. PLACES indicator on the Trends tab). DOM overlay instead
+       of canvas fillText so it stays sharp on HiDPI and survives a
+       resize without re-running the render. Brief 3 D6b. */
+    .chart-empty {
+      position: absolute; inset: 0;
+      display: flex; align-items: center; justify-content: center;
+      color: var(--gray-600);
+      font-size: 13px; text-align: center; padding: 12px;
+      background: rgba(255,255,255,0.85);
+      pointer-events: none;
+    }
+
+    /* Tablet (< 1100px): shrink the KPI panel, narrow the sidebar */
+    @media (max-width: 1100px) {
+      main { grid-template-columns: 240px 1fr; }
+      .overview-grid { grid-template-columns: 1fr 320px; }
+    }
+
+    /* Mobile (< 800px): map-first, sidebar becomes a slide-in drawer
+       toggled by a Filters button in the tab bar. Tap targets 44x44
+       minimum. Uses 100dvh so iOS Safari's toolbar doesn't clip the
+       bottom of the app. */
+    @media (max-width: 800px) {
+      .app { grid-template-rows: auto 48px 1fr; }
+      header {
+        grid-template-columns: 1fr;
+        row-gap: 4px; padding: 8px 12px; text-align: center;
+      }
+      header .logo { justify-self: center; height: 36px; max-width: 220px; }
+      header .titles { justify-self: center; }
+      header .titles h1 { font-size: 14px; }
+      header .titles .subtitle { font-size: 10px; }
+      header .status { justify-self: center; font-size: 10px; padding: 3px 8px; }
+
+      /* Tabs: 44px touch targets, scroll horizontally, add a Filters
+         toggle at the front. */
+      .tabs { overflow-x: auto; padding-left: 0; }
+      .tab {
+        padding: 12px 14px; font-size: 13px; white-space: nowrap;
+        min-height: 44px; display: flex; align-items: center;
+      }
+      #filtersToggle {
+        display: flex; align-items: center; gap: 6px;
+        background: var(--navy); color: white;
+        border: 0; border-radius: 0;
+        padding: 0 14px; min-width: 100px;
+        font-size: 13px; font-weight: 600;
+        cursor: pointer;
+      }
+      #filtersToggle::before { content: '☰'; font-size: 16px; }
+
+      /* Content area is a single column so the map + views can go full-width. */
+      main { grid-template-columns: 1fr; }
+
+      /* Sidebar becomes an off-canvas drawer, slides in from the left
+         when #sidebarDrawer[data-open="true"]. Full-height + scrollable. */
+      .sidebar {
+        position: fixed;
+        top: 0; left: 0; bottom: 0;
+        width: 280px; max-width: 85vw;
+        z-index: 1000;
+        transform: translateX(-100%);
+        transition: transform 0.25s ease;
+        box-shadow: 4px 0 12px rgba(0,0,0,0.15);
+        max-height: 100dvh;
+        border-right: 1px solid var(--gray-300);
+        border-bottom: none;
+      }
+      .sidebar[data-open="true"] { transform: translateX(0); }
+      #sidebarBackdrop {
+        display: none;
+        position: fixed; inset: 0;
+        background: rgba(0,0,0,0.4);
+        z-index: 999;
+      }
+      #sidebarBackdrop[data-open="true"] { display: block; }
+      /* Bigger checkboxes / buttons inside the sidebar */
+      .county-list label { padding: 10px 12px; font-size: 14px; min-height: 44px; }
+      .county-list input[type=checkbox] { transform: scale(1.15); margin-right: 10px; }
+      .county-actions button { min-height: 40px; }
+      select, input[type=text] { min-height: 40px; font-size: 14px; }
+
+      /* Overview: map fills, KPIs collapse to single column below,
+         chart panel at the bottom. All three rows use `auto` so their
+         intrinsic content height wins; the page (not the grid) scrolls
+         when the KPI panel + chart panel + map exceed viewport height.
+         Brief 3 D3 — previously the KPI panel was clipped just below
+         its heading because the middle `auto` row lost to a fixed-
+         height first + third row inside an overflow:hidden container. */
+      .overview-grid {
+        grid-template-columns: 1fr;
+        grid-template-rows: minmax(340px, 45dvh) auto auto;
+        padding: 6px; gap: 6px;
+        overflow-y: auto;
+        min-height: 0;
+      }
+      #mapView { grid-row: 1; grid-column: 1; min-height: 340px; }
+      .kpi-panel { grid-row: 2; grid-column: 1; padding: 10px; overflow: visible; }
+      .chart-panel.wide { grid-row: 3; grid-column: 1; min-height: 240px; }
+      .kpis { grid-template-columns: 1fr 1fr; gap: 6px; }
+      .kpi { padding: 8px 10px; }
+      .kpi-value { font-size: 18px; }
+
+      /* Analysis views: less padding, always-scrollable tables */
+      .analysis-view { padding: 8px; gap: 8px; }
+      .analysis-panel { padding: 10px 12px; }
+      .compare-scroll { max-height: calc(100dvh - 220px); }
+      .split-controls { grid-template-columns: 1fr; }
+      .compare-table th, .compare-table td { padding: 8px 10px; font-size: 12px; }
+
+      /* Sticky first column in Compare + Ranking tables so users don't
+         lose track of the row label while scrolling many county columns. */
+      .compare-table th:first-child, .compare-table td:first-child {
+        position: sticky; left: 0; z-index: 1;
+        /* Fallback background for un-shaded rows. Shaded rows set their
+           own td backgrounds via the .best-tract / .worst-tract rules
+           above so the sticky cell inherits the shade (Brief 2 B4). */
+        background: white;
+      }
+      #rankingTable tbody tr.worst-tract td:first-child { background: rgba(220,38,38,0.08); }
+      #rankingTable tbody tr.best-tract  td:first-child { background: rgba(5,150,105,0.08); }
+      .compare-table thead th:first-child { background: var(--gray-100); z-index: 2; }
+    }
+
+    /* Very small phones (< 480px): tighten further */
+    @media (max-width: 480px) {
+      header .titles h1 { font-size: 13px; }
+      header .titles .subtitle { display: none; }
+      .tab { padding: 12px 10px; font-size: 12px; }
+      .kpi-value { font-size: 16px; }
+      .kpi-value.small { font-size: 12px; }
+    }
+    /* Loading */
+    .loading {
+      position: absolute; inset: 0;
+      background: rgba(255,255,255,0.8);
+      display: flex; align-items: center; justify-content: center;
+      color: var(--navy); font-size: 14px; z-index: 100;
+    }
+    .footnote { font-size: 10px; color: var(--gray-600); padding: 8px 12px; background: var(--gray-100); border-radius: 4px; margin-top: 12px; }
+    .footnote a { color: var(--navy); word-break: break-all; }
+    canvas { max-height: 100%; }
