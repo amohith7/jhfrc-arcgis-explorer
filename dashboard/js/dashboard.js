@@ -101,6 +101,20 @@
       'pov_below','mhi','edu_ba','no_insur','obesity','hh_diab',
       'ph_poor14','bb_access','no_veh','youth_dis','cost_rent','single_p'
     ];
+    // Short axis labels for the correlation matrix. Full labels
+    // ("Below Poverty Line (%)") are too long for a 12x12 tick grid
+    // and Chart.js autoSkip drops them entirely; short strings render
+    // rotated in ~60px of gutter. Falls back to the id when a new
+    // indicator is added but not yet mapped here.
+    const CORR_SHORT_LABEL = {
+      pov_below: 'Poverty', mhi: 'Med Inc', mpci: 'Per Cap Inc',
+      edu_ba: 'BA+', edu_posths: 'Post-HS', emp_adults: 'Employed',
+      no_insur: 'Uninsured', obesity: 'Obesity', hh_diab: 'Diabetes',
+      hh_snap: 'SNAP', ph_poor14: 'Phys Health', bb_access: 'Broadband',
+      no_veh: 'No Vehicle', youth_dis: 'Youth Disc', cost_rent: 'Rent Cost',
+      single_p: 'Single Parent', smoke: 'Smoking', vacant: 'Vacant',
+      med_rent: 'Med Rent',
+    };
     const CORR_INDICATORS_FALLBACK = [
       'pov_below','mhi','mpci','emp_adults','edu_ba','edu_posths',
       'hh_snap','hh_diab','obesity','smoke','vacant','med_rent'
@@ -1652,12 +1666,21 @@
             x: {
               min: -0.5, max: n-0.5,
               title: { display: true, text: 'Indicator (X-axis)', font: { size: 11, weight: '600' }, color: '#374151' },
-              ticks: { stepSize: 1, callback: (v) => CORR[v] || '', font: { size: 9 }, maxRotation: 60 }
+              ticks: {
+                stepSize: 1, autoSkip: false,
+                callback: (v) => CORR_SHORT_LABEL[CORR[v]] || CORR[v] || '',
+                font: { size: 10 },
+                maxRotation: 55, minRotation: 45,
+              }
             },
             y: {
               min: -0.5, max: n-0.5,
               title: { display: true, text: 'Indicator (Y-axis)', font: { size: 11, weight: '600' }, color: '#374151' },
-              ticks: { stepSize: 1, callback: (v) => CORR[v] || '', font: { size: 9 } }
+              ticks: {
+                stepSize: 1, autoSkip: false,
+                callback: (v) => CORR_SHORT_LABEL[CORR[v]] || CORR[v] || '',
+                font: { size: 10 },
+              }
             }
           }
         }
