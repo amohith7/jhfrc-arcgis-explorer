@@ -1053,9 +1053,22 @@
       // Hard ceiling of 20 pages (40k tracts) — defensive against a
       // misconfigured layer that never sets exceededTransferLimit=false.
       for (let page = 0; page < 20; page++) {
-        const url = `${LAYER_URL}/query?where=1%3D1&outFields=${outFieldsQS}` +
-                    `&resultOffset=${offset}&resultRecordCount=${PAGE_SIZE}&f=json`;
-        const r = await fetch(url);
+        // Use POST because the outFields list crosses IIS's ~2 KB
+        // URL-length cap once we ask for the full 189-field schema
+        // (61 indicators × value + _d5 + _supp). AGOL's query
+        // endpoint accepts identical params via form body.
+        const body = new URLSearchParams({
+          where: '1=1',
+          outFields: outFieldsQS,
+          resultOffset: String(offset),
+          resultRecordCount: String(PAGE_SIZE),
+          f: 'json',
+        });
+        const r = await fetch(`${LAYER_URL}/query`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+          body,
+        });
         const data = await r.json();
         if (data.error) throw new Error(`Layer query failed: ${data.error.message}`);
         const attrs = (data.features || []).map(f => f.attributes);
