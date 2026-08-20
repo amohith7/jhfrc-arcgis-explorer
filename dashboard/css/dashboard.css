@@ -502,21 +502,24 @@
        Chart.js would otherwise draw past the panel border (root cause
        of the "second panel heading crashes into first panel's tick
        labels" screenshots — Chart.js with maintainAspectRatio:false
-       overdraws when the flex parent has no bounded height). */
-    .analysis-panel { display: flex; flex-direction: column; min-height: 420px; min-width: 0; overflow: hidden; }
+       overdraws when the flex parent has no bounded height). Panel
+       min-height bumped from 420 to 560 so an 11-county bar or a
+       12x12 correlation matrix inside chart-box (min-height 500 +
+       heading) is not visually clipped by a too-short panel — the
+       analysis-view scrolls when total content exceeds viewport. */
+    .analysis-panel { display: flex; flex-direction: column; min-height: 560px; min-width: 0; overflow: hidden; }
     /* Charts that should grow with the panel + browser height. Chart
-       min-height raised from 220px to 320px so complex charts (11-
-       county bar with axis titles + tick labels, 12x12 correlation
-       matrix, 20-bin histogram) don't compress into an unreadable
-       strip. If a viewport is short, .view scrolls. Brief 3
-       chart-height feedback. */
+       min-height raised progressively as more indicators / counties
+       were added; 500 accommodates:
+         - 11 county bars at ~36 px each + axis titles = ~440 px
+         - 12x12 correlation matrix at ~34 px per cell = ~430 px
+         - 20-bin histogram with axis labels = ~380 px
+       If a viewport is short the panel exceeds it and .analysis-view
+       scrolls (overflow: auto set higher up). */
     .chart-box {
       position: relative;
       flex: 1 1 auto;
-      /* 380 (was 320) so an 11-county bar chart or 12x12 correlation
-         matrix has room for its axis titles + rotated tick labels
-         without compressing into an unreadable strip. */
-      min-height: 380px;
+      min-height: 500px;
       display: flex;
       /* Second line of defence against Chart.js overdraw. Even with
          panel-level overflow:hidden, clipping at the chart-box means
