@@ -68,12 +68,17 @@
           PLACES 2024).</p>
         <p><b>How to read it.</b> Overview, KPIs, and Tract Ranking
           show tract-level values from the source. Compare Counties
-          shows the published county estimate where available; a
-          small
+          shows the <b>direct county estimate</b> pulled straight from
+          the Census county API (ACS 2020&#8211;2024, exact published
+          variable or its published numerator/denominator recomputed)
+          or the CDC PLACES county API (2024, crude prevalence).
+          A small
           <span style="color:#a16207; font-weight:600;">&#8225;</span>
-          marks universe-weighted tract aggregations (only permitted
-          for indicators validated against official ACS). Blank means
-          neither is available. 5-year change re-projects the
+          marks the few indicators where the direct county pull is
+          unavailable and we fall back to universe-weighted tract
+          aggregation (permitted only where metric identity has been
+          validated against an official ACS county estimate). Blank
+          means neither is available. 5-year change re-projects the
           2015&#8211;19 baseline onto 2020 tract geometry so tracts
           whose boundaries shifted are not silently miscompared.</p>
         <p><b>What it isn't.</b> Not investment, lending, or
@@ -245,24 +250,31 @@
                 in the left sidebar. Each selected county becomes a
                 column. The <b>Best</b> column highlights the county
                 with the most favorable value for that indicator (only
-                for indicators with a defined direction). Numbers shown
-                are the <b>published county estimate</b> from the
-                Community Profiles source (ACS 2020&#8211;2024 or CDC
-                PLACES 2024) where available; where a published county
-                value is not available AND we have validated the
-                metric identity against an official ACS county
-                estimate, we compute
+                for indicators with a defined direction). Numbers
+                shown are the <b>direct county estimate</b> pulled
+                straight from the Census county API (ACS 2020&#8211;2024,
+                either the exact published Data Profile / Subject
+                Table variable such as <code>DP03_0119PE</code> for
+                poverty or <code>B19013_001E</code> for median
+                household income, or the published county
+                numerator/denominator recomputed on the fly) or the
+                CDC PLACES county API (2024 release, crude
+                prevalence). Tract-level values are never averaged to
+                produce a county number. Where the direct county pull
+                does not cover an indicator, we fall back to
                 <b>universe-weighted aggregation</b> of tract
-                estimates using each indicator's measure-specific
-                denominator, requiring at least 80% of the county's
-                relevant population to be represented (marked with
-                <span style="color:#a16207; font-weight:600;">&#8225;</span>).
+                estimates &#8212; permitted only for indicators whose
+                metric identity has been validated against an
+                official ACS county estimate, requiring at least 80%
+                of the county's relevant population to be
+                represented, and marked with
+                <span style="color:#a16207; font-weight:600;">&#8225;</span>.
                 We do not use unweighted means, and we do not
                 aggregate for indicators whose metric identity has not
                 been validated &#8212; a defensible universe is not
                 permission to aggregate. <b>Blank cells</b> mean
-                neither a published value nor a validated aggregation
-                is available. <b>Cell shading</b> shows position vs.
+                neither a direct county pull nor a validated
+                aggregation is available. <b>Cell shading</b> shows position vs.
                 the Tennessee benchmark for that indicator: shaded one
                 tone if the county is more than 2% above the state
                 value, the other tone if more than 2% below, and
