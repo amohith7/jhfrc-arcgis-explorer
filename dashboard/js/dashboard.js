@@ -1224,14 +1224,11 @@
           BasemapGallery, Expand, Legend, Home, Search, ScaleBar, Fullscreen) => {
         try {
           mapModules = { Map, MapView, FeatureLayer, colorRendererCreator, colorSchemes };
+          // popupTemplate intentionally omitted — task #132 replaces
+          // the default 61-field popup with a focused side panel (see
+          // renderTractPanel + the view.on('click', ...) hook below).
           const layer = new FeatureLayer({
             url: LAYER_URL, outFields: ['*'],
-            popupTemplate: {
-              title: 'Tract {tract_geoid} — {county_name}',
-              content: [{ type: 'fields', fieldInfos: INDICATORS.map(i => ({
-                fieldName: i.id, label: i.label, format: { digitSeparator: true, places: 1 }
-              })) }]
-            }
           });
           state.layer = layer;
           // OpenStreetMap as the default — free, familiar, no attribution
@@ -1240,8 +1237,32 @@
           // Semi-transparent choropleth so the OSM roads / labels show
           // through instead of being covered by solid polygons.
           layer.opacity = 0.65;
-          state.mapView = new MapView({ container: 'mapView', map, center: [-85.3, 35.6], zoom: 7 });
+          state.mapView = new MapView({
+            container: 'mapView', map, center: [-85.3, 35.6], zoom: 7,
+            // Disable the default popup — task #132 uses a custom
+            // side-panel via view.on('click') + hitTest.
+            popup: { autoOpenEnabled: false, dockEnabled: false },
+          });
           state.mapView.when(() => {
+            // Task #132: click a tract polygon -> populate the side
+            // panel with a focused card for the currently-selected
+            // primary indicator. Skip clicks that miss the layer.
+            state.mapView.on('click', evt => {
+              state.mapView.hitTest(evt).then(response => {
+                const hit = (response.results || []).find(r =>
+                  r.graphic && r.graphic.layer === state.layer
+                );
+                if (!hit) return;
+                const attrs = hit.graphic.attributes || {};
+                // hitTest gives us a Graphic; enrich with any missing
+                // fields from state.features (which has all _county /
+                // _state / _univ / _d5 pivoted in).
+                const rich = state.features.find(f =>
+                  f.tract_geoid === attrs.tract_geoid
+                ) || attrs;
+                renderTractPanel(rich);
+              }).catch(() => {});
+            });
             clearTimeout(failTimer);
             loadingDiv.style.display = 'none';
             // Map widgets — polish + power-user tools.
@@ -1843,23 +1864,58 @@
             bestName = best.name;
           }
         }
+        // Task #134 — cell shading vs state benchmark (neutral
+        // diverging, NOT good/bad coloring). Pull the state avg
+        // from the layer's <indicator>_state field (any tract in
+        // the county has it), fall back to dictionary tn_avg.
+        const anyTract = byCounty[selected[0]] && byCounty[selected[0]][0];
+        const stateBench = anyTract && anyTract[ind.id + '_state'] != null
+          ? anyTract[ind.id + '_state']
+          : ind.tn_avg;
         const tr = document.createElement('tr');
-        // Every cell displays its provenance: a small superscript
-        // marker "‡" indicates universe-weighted aggregation from
-        // tract estimates (title tooltip explains). Published cells
-        // render as-is. Blank cells show an em-dash.
         const cellsHtml = cells.map(({ value, basis }) => {
           if (value == null) {
             return '<td class="num"><span style="color:#9ca3af;" title="No published county estimate and no defensible universe-weighted aggregation available for this indicator.">&mdash;</span></td>';
           }
-          if (basis === 'tract_aggregation') {
-            return `<td class="num" title="Aggregated from tract estimates; no direct county estimate available.">${fmt(value, ind)}<sup style="color:#a16207; font-weight:600; margin-left:2px;">‡</sup></td>`;
-          }
-          return `<td class="num">${fmt(value, ind)}</td>`;
+          const shadeCls = _positionVsState(value, stateBench);
+          const marker = basis === 'tract_aggregation'
+            ? '<sup style="color:#a16207; font-weight:600; margin-left:2px;">&#8225;</sup>'
+            : '';
+          const title = shadeCls === 'bench-above'
+            ? `Above the Tennessee benchmark (${stateBench != null ? fmt(stateBench, ind) : 'n/a'})`
+            : shadeCls === 'bench-below'
+              ? `Below the Tennessee benchmark (${stateBench != null ? fmt(stateBench, ind) : 'n/a'})`
+              : `Near the Tennessee benchmark`;
+          const basisTitle = basis === 'tract_aggregation' ? ' &middot; universe-weighted aggregation of tract estimates' : '';
+          return `<td class="num ${shadeCls}" title="${title}${basisTitle}">${fmt(value, ind)}${marker}</td>`;
         }).join('');
         const bestCls = bestName !== '—' ? 'better' : 'same';
         tr.innerHTML = `<td>${ind.label}</td>${cellsHtml}<td class="num ${bestCls}">${bestName}</td>`;
         tbody.appendChild(tr);
+      }
+      // Task #134 — regional summary row at bottom of table (min /
+      // median / max across the currently-selected counties). Uses
+      // the FIRST indicator's cells because a summary of ~40 rows
+      // in one line only makes sense per row; instead we emit ONE
+      // consolidated row using the primary indicator (state.indA).
+      // Extension: a full per-row summary column can be added later.
+      const primary = INDICATORS_BY_ID[state.indA];
+      if (primary) {
+        const primaryCells = selected.map(c => _countyValue(c, primary, byCounty[c]));
+        const summary = _regionalSummary(primaryCells.map(c => c.value), primary);
+        if (summary) {
+          const stateBench = anyTract && anyTract[primary.id + '_state'] != null
+            ? anyTract[primary.id + '_state']
+            : primary.tn_avg;
+          const stateBenchStr = stateBench != null ? summary.fmt(stateBench) : '&mdash;';
+          const tr = document.createElement('tr');
+          tr.className = 'summary-row';
+          tr.innerHTML = `<td>Regional (min / median / max) &middot; ${primary.label}</td>` +
+            `<td class="num" colspan="${selected.length + 1}">` +
+            `min ${summary.fmt(summary.min)} &middot; median ${summary.fmt(summary.median)} &middot; max ${summary.fmt(summary.max)} &middot; ` +
+            `<span style="color:var(--gray-600); font-weight:500;">TN benchmark ${stateBenchStr}</span></td>`;
+          tbody.appendChild(tr);
+        }
       }
     }
 
@@ -2121,6 +2177,66 @@
           }
         }
       });
+
+      // Task #135 — plain-English change summary (Finding + Detail)
+      // and tract-level top-movers list. Suppresses "changed"
+      // language when the county mean is within measurement
+      // uncertainty (heuristic without MOE data: |delta| < 0.5 pp
+      // for percent, < 5% relative for currency).
+      const trendPlainEl = document.getElementById('trendPlain');
+      if (trendPlainEl) {
+        // Mean delta across all visible tracts
+        const allDeltas = pts.map(p => p[dfield]);
+        const meanDelta = allDeltas.length ? allDeltas.reduce((a,b) => a+b, 0) / allDeltas.length : null;
+        const absMean = meanDelta == null ? 0 : Math.abs(meanDelta);
+        const isCurrency = ind && ind.unit === 'currency';
+        const uncertain = isCurrency
+          ? (absMean / Math.max(1, Math.abs(ind.tn_avg || meanDelta)) < 0.05)
+          : (absMean < 0.5);
+        const label = ind?.label || field;
+        let plain = '';
+        if (meanDelta == null) {
+          plain = `Not enough tract-level change data to summarize.`;
+        } else if (uncertain) {
+          plain = `<b>${label}</b> changed within measurement uncertainty across the selected communities. The mean tract-level change was ${fmtDelta(meanDelta, ind)}, which is small enough that we cannot say the change was distinguishable from sampling noise.`;
+        } else {
+          const dirWord = meanDelta > 0 ? 'increased' : 'decreased';
+          const meaning = ind.higherIsWorse === true
+            ? (meanDelta > 0 ? 'meaning conditions worsened on this measure' : 'meaning conditions improved on this measure')
+            : ind.higherIsWorse === false
+              ? (meanDelta > 0 ? 'meaning conditions improved on this measure' : 'meaning conditions worsened on this measure')
+              : 'this indicator is direction-neutral, so the change is descriptive only';
+          plain = `<b>${label}</b> ${dirWord} across the selected communities. The mean tract-level change was ${fmtDelta(meanDelta, ind)}, ${meaning}. No causal claim &mdash; this is a description of movement between the two ACS releases, not an explanation of why it moved.`;
+        }
+        trendPlainEl.innerHTML = plain;
+        trendPlainEl.hidden = false;
+      }
+
+      const moversEl = document.getElementById('trendMovers');
+      if (moversEl) {
+        // Top-5 up + top-5 down tracts by absolute delta
+        const withCounty = pts.map(p => ({
+          geoid: p.tract_geoid,
+          county: p.county_name,
+          delta: p[dfield],
+          value: p[field],
+        }));
+        const sortedUp = withCounty.slice().sort((a, b) => b.delta - a.delta).slice(0, 5);
+        const sortedDown = withCounty.slice().sort((a, b) => a.delta - b.delta).slice(0, 5);
+        const rowHtml = t => `<li style="margin:2px 0;"><b>Tract ${t.geoid}</b> (${t.county}) &mdash; ${fmtDelta(t.delta, ind)} &middot; now ${fmt(t.value, ind)}</li>`;
+        moversEl.innerHTML = `
+          <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px;">
+            <div>
+              <div style="font-size:10px; text-transform:uppercase; letter-spacing:.05em; color:var(--gray-600); font-weight:700; margin-bottom:4px;">Biggest increases</div>
+              <ol style="margin:0; padding-left:18px;">${sortedUp.map(rowHtml).join('')}</ol>
+            </div>
+            <div>
+              <div style="font-size:10px; text-transform:uppercase; letter-spacing:.05em; color:var(--gray-600); font-weight:700; margin-bottom:4px;">Biggest decreases</div>
+              <ol style="margin:0; padding-left:18px;">${sortedDown.map(rowHtml).join('')}</ol>
+            </div>
+          </div>`;
+        moversEl.hidden = false;
+      }
     }
 
     // ─────────────────────────────────────────────────────────────────────
@@ -2465,6 +2581,193 @@
       if (!findings.length) { el.hidden = true; return; }
       el.hidden = false;
       el.innerHTML = _keyFindingsHTML(findings);
+    }
+
+    // ─── Tract click-through side panel (task #132) ───────────────────
+    // Overlays the map when a tract polygon is clicked. Focused card:
+    // one tract, currently-selected indicator, with county/state/US
+    // benchmarks, reliability tier, 5-year change, and the top three
+    // most-correlated regional indicators. Replaces the default
+    // ArcGIS popup that dumped every field.
+    function renderTractPanel(tract) {
+      const panel = document.getElementById('tractPanel');
+      const body = document.getElementById('tractPanelBody');
+      if (!panel || !body) return;
+      const ind = INDICATORS_BY_ID[state.indA];
+      if (!ind) { panel.hidden = true; return; }
+      const val = tract[ind.id];
+      const cty = tract[ind.id + '_county'];
+      const st  = tract[ind.id + '_state'];
+      const us  = tract[ind.id + '_us'];
+      const d5  = indicatorSupportsDelta(ind.id) ? tract[ind.id + '_d5'] : null;
+      const tier = reliabilityTier(ind, tract);
+      const tierChip = tier ? `<span class="reliability ${tier.key}" title="${tier.detail.replace(/"/g,'&quot;')}">${tier.label}</span>` : '';
+      // Sign-aware change display
+      let changeHtml = '';
+      if (d5 != null && !isNaN(d5)) {
+        const eps = 0.5;
+        const abs = Math.abs(d5);
+        if (abs < eps) {
+          changeHtml = `<span class="tp-change-flat">${fmtDelta(d5, ind)} — within measurement uncertainty</span>`;
+        } else {
+          const cls = d5 > 0
+            ? (ind.higherIsWorse === true ? 'tp-change-up' : ind.higherIsWorse === false ? 'tp-change-down' : 'tp-change-flat')
+            : (ind.higherIsWorse === true ? 'tp-change-down' : ind.higherIsWorse === false ? 'tp-change-up' : 'tp-change-flat');
+          changeHtml = `<span class="${cls}">${fmtDelta(d5, ind)}</span>`;
+        }
+      }
+      // Top-related indicators: run pearsonR against all present
+      // headline indicators over the current region, sorted by |r|.
+      const related = [];
+      try {
+        const xs = [], keys = [];
+        const otherIds = INDICATORS.filter(i => i.id !== ind.id
+          && (!state.presentFields || state.presentFields.has(i.id)));
+        for (const oi of otherIds) {
+          const px = [], py = [];
+          for (const f of state.features) {
+            const a = f[ind.id], b = f[oi.id];
+            if (a == null || b == null || isNaN(a) || isNaN(b)) continue;
+            px.push(a); py.push(b);
+          }
+          if (px.length >= 20) {
+            const r = pearsonR(px, py);
+            if (r != null && !isNaN(r)) related.push({ oi, r, n: px.length });
+          }
+        }
+        related.sort((a, b) => Math.abs(b.r) - Math.abs(a.r));
+      } catch (_) {}
+      const relatedList = related.slice(0, 3).map(x =>
+        `<li><b>${x.oi.label}</b> — ${x.r > 0 ? 'moves with' : 'moves opposite'} (r=${x.r.toFixed(2)}, n=${x.n})</li>`
+      ).join('') || '<li class="tp-empty">No related indicators available.</li>';
+
+      body.innerHTML = `
+        <h4>Tract ${tract.tract_geoid}</h4>
+        <div class="tp-sub">${tract.county_name} County ${tierChip}</div>
+        <div class="tp-section-title">${ind.label}</div>
+        <div class="tp-row"><div class="tp-row-lbl">This tract</div><div class="tp-row-val">${val == null || isNaN(val) ? '&mdash;' : fmt(val, ind)}</div></div>
+        <div class="tp-row"><div class="tp-row-lbl">${tract.county_name} County</div><div class="tp-row-val">${cty == null ? '&mdash;' : fmt(cty, ind)}</div></div>
+        <div class="tp-row"><div class="tp-row-lbl">Tennessee</div><div class="tp-row-val">${st == null ? (ind.tn_avg != null ? fmt(ind.tn_avg, ind) : '&mdash;') : fmt(st, ind)}</div></div>
+        <div class="tp-row"><div class="tp-row-lbl">United States</div><div class="tp-row-val">${us == null ? (ind.us_avg != null ? fmt(ind.us_avg, ind) : '&mdash;') : fmt(us, ind)}</div></div>
+        ${changeHtml ? `<div class="tp-row"><div class="tp-row-lbl">5-year change</div><div class="tp-row-val">${changeHtml}</div></div>` : ''}
+        <div class="tp-section-title">Related community conditions</div>
+        <ul class="tp-related">${relatedList}</ul>
+        <div class="tp-section-title">Source</div>
+        <div style="font-size:11px; color:var(--gray-600);">
+          ${ind.source === 'PLACES' ? 'CDC PLACES 2024 (model-based estimate)' : 'ACS 5-year 2020&#8211;2024 survey estimate'}${ind.table ? ` &middot; Table ${ind.table}` : ind.measure_id ? ` &middot; Measure ${ind.measure_id}` : ''}
+        </div>`;
+      panel.hidden = false;
+    }
+    (function wireTractPanelClose() {
+      const btn = document.getElementById('tractPanelClose');
+      const panel = document.getElementById('tractPanel');
+      if (!btn || !panel) return;
+      btn.addEventListener('click', () => { panel.hidden = true; });
+      document.addEventListener('keydown', e => {
+        if (e.key === 'Escape' && !panel.hidden) panel.hidden = true;
+      });
+    })();
+
+    // Wire the Download County Summary button (task #133). Opens
+    // a printable HTML window using exportCountySummaryHTML(). If
+    // multiple counties are selected, prompts for which.
+    (function wireCountyExport() {
+      const btn = document.getElementById('exportCountyBtn');
+      if (!btn) return;
+      btn.addEventListener('click', () => {
+        const selected = [...selectedCounties()].sort();
+        if (!selected.length) { alert('Select at least one county first.'); return; }
+        let countyName = selected[0];
+        if (selected.length > 1) {
+          const pick = prompt(`Which county's summary?\n\nSelected: ${selected.join(', ')}\n\nType the county name:`, selected[0]);
+          if (!pick) return;
+          const match = selected.find(c => c.toLowerCase() === pick.trim().toLowerCase());
+          if (!match) { alert(`"${pick}" is not in the current county selection.`); return; }
+          countyName = match;
+        }
+        const html = exportCountySummaryHTML(countyName);
+        if (!html) { alert('Could not build summary for that county.'); return; }
+        const win = window.open('', '_blank');
+        if (!win) { alert('Popup blocked. Allow popups to open the summary.'); return; }
+        win.document.open(); win.document.write(html); win.document.close();
+      });
+    })();
+
+    // ─── County summary export (task #133) ────────────────────────────
+    // 2-4 page executive brief per county. Opens a self-contained
+    // HTML window with print CSS so the user can print-to-PDF from
+    // the browser. Contents: county snapshot, key findings, all
+    // headline indicators with county/state/US benchmarks, 5-year
+    // change (where valid), reliability notes, methodology footer.
+    function exportCountySummaryHTML(countyName) {
+      const inds = INDICATORS.filter(i => !state.presentFields || state.presentFields.has(i.id));
+      const tracts = state.features.filter(f => f.county_name === countyName);
+      if (!tracts.length) return null;
+      const countyFips = tracts[0].county_fips || (tracts[0].tract_geoid || '').slice(0, 5);
+      const nTracts = tracts.length;
+      // Aggregation basis + value per indicator
+      const rows = inds.map(ind => {
+        const cv = _countyValue(countyName, ind, tracts);
+        const st = tracts[0][ind.id + '_state'];
+        const us = tracts[0][ind.id + '_us'];
+        const nSupp = state.presentFields && state.presentFields.has(ind.id + '_supp')
+          ? tracts.filter(t => t[ind.id + '_supp']).length : 0;
+        const nUsable = tracts.filter(t => t[ind.id] != null && !isNaN(t[ind.id])).length;
+        return { ind, cv, st, us, nSupp, nUsable };
+      });
+      const rowsHtml = rows.map(r => {
+        const cyc = r.cv.value == null ? '&mdash;' : fmt(r.cv.value, r.ind);
+        const basis = r.cv.basis === 'tract_aggregation' ? ' <sup style="color:#a16207;">&#8225;</sup>' : '';
+        const stx = r.st == null ? (r.ind.tn_avg != null ? fmt(r.ind.tn_avg, r.ind) : '') : fmt(r.st, r.ind);
+        const usx = r.us == null ? (r.ind.us_avg != null ? fmt(r.ind.us_avg, r.ind) : '') : fmt(r.us, r.ind);
+        return `<tr><td>${r.ind.label}</td><td>${cyc}${basis}</td><td>${stx}</td><td>${usx}</td><td>${r.nUsable}/${nTracts}${r.nSupp ? ' (' + r.nSupp + ' suppressed)' : ''}</td></tr>`;
+      }).join('');
+      const stamp = new Date().toISOString().slice(0, 10);
+      return `<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"/>
+        <title>${countyName} County Summary — JHFRC ${stamp}</title>
+        <style>
+          body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;color:#1f2937;max-width:900px;margin:32px auto;padding:0 24px;font-size:13px;line-height:1.5;}
+          h1{color:#112E51;font-size:22px;margin:0 0 4px;} h2{color:#112E51;font-size:15px;margin:24px 0 8px;text-transform:uppercase;letter-spacing:.05em;}
+          .subtitle{color:#6b7280;font-size:12px;margin-bottom:24px;}
+          table{border-collapse:collapse;width:100%;font-size:12px;}
+          th,td{text-align:left;padding:6px 8px;border-bottom:1px solid #e5e7eb;}
+          th{background:#f5f7fa;font-weight:600;color:#6b7280;text-transform:uppercase;font-size:10px;letter-spacing:.05em;}
+          td:nth-child(2),td:nth-child(3),td:nth-child(4){font-family:"SF Mono",Consolas,monospace;text-align:right;}
+          .footer{color:#6b7280;font-size:11px;margin-top:24px;border-top:1px solid #e5e7eb;padding-top:12px;}
+          .print-btn{position:fixed;top:16px;right:16px;background:#112E51;color:white;border:0;padding:8px 14px;border-radius:4px;cursor:pointer;font-size:12px;}
+        </style></head><body>
+        <button class="print-btn no-print" onclick="window.print()">Print / Save as PDF</button>
+        <h1>${countyName} County — Community Summary</h1>
+        <div class="subtitle">FIPS ${countyFips} &middot; ${nTracts} census tracts &middot; Generated ${stamp}<br>
+          Journey Health Foundation Research Center &middot; University of Tennessee at Chattanooga</div>
+        <h2>Indicators</h2>
+        <table><thead><tr><th>Indicator</th><th>${countyName}</th><th>TN</th><th>US</th><th>Tract coverage</th></tr></thead>
+          <tbody>${rowsHtml}</tbody></table>
+        <div class="footer">
+          Numbers are the published county estimate from the Community Profiles source (ACS 2020&#8211;2024 or CDC PLACES 2024) where available; a <sup style="color:#a16207;">&#8225;</sup> marks universe-weighted tract aggregation (only permitted for indicators validated against official ACS county estimates). Blank means no published value and no defensible aggregation. Race, ethnicity, and language indicators are shown as descriptive context only and never enter a composite score. This is descriptive research; verify designations with the administering agency before making decisions.
+        </div></body></html>`;
+    }
+
+    // ─── Compare Counties benchmark shading + summary row (task #134) ─
+    // Adds neutral diverging shading per cell relative to state_avg,
+    // plus a bottom-row regional summary (min / median / max across
+    // currently-selected counties). Direction-neutral: does NOT color
+    // "favorable/unfavorable" per user's standing rule.
+    function _positionVsState(value, stateVal) {
+      if (value == null || stateVal == null) return '';
+      const eps = 0.02 * Math.abs(stateVal || 1);
+      if (value > stateVal + eps) return 'bench-above';
+      if (value < stateVal - eps) return 'bench-below';
+      return '';
+    }
+    function _regionalSummary(values, ind) {
+      const clean = values.filter(v => v != null && !isNaN(v)).slice().sort((a, b) => a - b);
+      if (clean.length === 0) return null;
+      const min = clean[0], max = clean[clean.length - 1];
+      const median = clean.length % 2
+        ? clean[(clean.length - 1) / 2]
+        : (clean[clean.length / 2 - 1] + clean[clean.length / 2]) / 2;
+      return { min, median, max, fmt: v => fmt(v, ind) };
     }
 
     function activeView() {
