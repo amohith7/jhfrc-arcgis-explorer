@@ -578,6 +578,11 @@
         ...INDICATORS.map(i => i.id + '_state'),
         ...INDICATORS.map(i => i.id + '_us'),
         ...INDICATORS.map(i => i.id + '_univ'),
+        // Task #129: per-county MOE + CV so Compare can render a
+        // reliability chip and explain "suppressed for high
+        // uncertainty" when the build-time CV>40% suppression fires.
+        ...INDICATORS.map(i => i.id + '_moe_county'),
+        ...INDICATORS.map(i => i.id + '_cv_county'),
       ];
       const fields = desired.filter(f => existing.has(f));
       const missing = desired.filter(f => !existing.has(f));
@@ -1849,6 +1854,17 @@
       for (const ind of indicatorList) {
         // Published county estimate per selected county
         const cells = selected.map(c => _countyValue(c, ind, byCounty[c]));
+        // Task #129: pull per-county MOE and CV from the layer for
+        // reliability chip + suppression-reason messaging. Any tract
+        // in a county carries that county's _moe_county / _cv_county.
+        const countyMeta = selected.map((c) => {
+          const t = (byCounty[c] || [])[0];
+          if (!t) return { moe: null, cv: null };
+          return {
+            moe: t[ind.id + '_moe_county'],
+            cv:  t[ind.id + '_cv_county'],
+          };
+        });
         const values = cells.map(o => o.value);
         // Best (favorable) county for this indicator — only among
         // counties with a published value; a blank cell can't win.
@@ -1873,21 +1889,42 @@
           ? anyTract[ind.id + '_state']
           : ind.tn_avg;
         const tr = document.createElement('tr');
-        const cellsHtml = cells.map(({ value, basis }) => {
+        const cellsHtml = cells.map(({ value, basis }, i) => {
+          const meta = countyMeta[i] || {};
           if (value == null) {
-            return '<td class="num"><span style="color:#9ca3af;" title="No published county estimate and no defensible universe-weighted aggregation available for this indicator.">&mdash;</span></td>';
+            // Distinguish "value suppressed for high uncertainty"
+            // (MOE + CV populated but value null after build-time
+            // CV > 40% suppression) from "no data available at all".
+            if (meta.cv != null && !isNaN(meta.cv)) {
+              const cvPct = (meta.cv * 100).toFixed(0);
+              return `<td class="num"><span style="color:#a16207;" title="County estimate exists but was suppressed at build time because its coefficient of variation (${cvPct}%) exceeds 40%. Sample too small for a reliable value.">&#8226;&#8226;&#8226;</span></td>`;
+            }
+            return '<td class="num"><span style="color:#9ca3af;" title="No direct county estimate available and no defensible universe-weighted aggregation.">&mdash;</span></td>';
           }
           const shadeCls = _positionVsState(value, stateBench);
           const marker = basis === 'tract_aggregation'
-            ? '<sup style="color:#a16207; font-weight:600; margin-left:2px;">&#8225;</sup>'
+            ? '<sup style="color:#a16207; font-weight:600; margin-left:2px;" title="Universe-weighted tract aggregation (direct county pull unavailable)">&#8225;</sup>'
             : '';
+          // Reliability chip when MOE is known: high < 10% CV,
+          // moderate 10-25%, elevated 25-40%. > 40% would be
+          // suppressed above, so never reaches here.
+          let chip = '';
+          if (meta.cv != null && !isNaN(meta.cv)) {
+            const cvPct = meta.cv * 100;
+            const moeStr = meta.moe != null ? fmt(meta.moe, ind) : 'n/a';
+            let cls, label;
+            if      (cvPct < 10) { cls = 'high';     label = 'high';     }
+            else if (cvPct < 25) { cls = 'moderate'; label = 'moderate'; }
+            else                 { cls = 'elevated'; label = 'elevated uncertainty'; }
+            chip = ` <span class="reliab-chip reliab-${cls}" title="Reliability ${label} — MOE ±${moeStr} (CV ${cvPct.toFixed(0)}%)">${cvPct.toFixed(0)}%</span>`;
+          }
           const title = shadeCls === 'bench-above'
             ? `Above the Tennessee benchmark (${stateBench != null ? fmt(stateBench, ind) : 'n/a'})`
             : shadeCls === 'bench-below'
               ? `Below the Tennessee benchmark (${stateBench != null ? fmt(stateBench, ind) : 'n/a'})`
               : `Near the Tennessee benchmark`;
           const basisTitle = basis === 'tract_aggregation' ? ' &middot; universe-weighted aggregation of tract estimates' : '';
-          return `<td class="num ${shadeCls}" title="${title}${basisTitle}">${fmt(value, ind)}${marker}</td>`;
+          return `<td class="num ${shadeCls}" title="${title}${basisTitle}">${fmt(value, ind)}${marker}${chip}</td>`;
         }).join('');
         const bestCls = bestName !== '—' ? 'better' : 'same';
         tr.innerHTML = `<td>${ind.label}</td>${cellsHtml}<td class="num ${bestCls}">${bestName}</td>`;

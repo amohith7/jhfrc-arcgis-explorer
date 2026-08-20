@@ -48,6 +48,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import math
 import os
 import sys
 import time
@@ -95,6 +96,19 @@ EST = ZoneInfo("America/New_York")
 #       num      : list[str] of numerator variables (summed)
 #       den      : list[str] of denominator variables (summed)
 #       scale    : 100 for percent output, 1 for ratio/count
+#       table    : primary source table id
+#
+#   kind == "acs_sum_percent"
+#       endpoint : "profile" | "subject" | "acs"
+#       vars     : list[str] of PE (or equivalent published-percent)
+#                  variables that share a common denominator. The
+#                  county value is the direct sum. Use this when the
+#                  metric of interest is a union of published-percent
+#                  categories on the SAME universe (e.g. "% owners
+#                  paying >=30% of income" = 30-34.9% bucket +
+#                  35%+ bucket; "% housing built before 1980" = sum
+#                  of the five pre-1980 decade buckets on total
+#                  housing units).
 #       table    : primary source table id
 #
 #   kind == "places"
@@ -276,45 +290,19 @@ INDICATOR_SOURCES: dict[str, dict] = {
         "notes": "% with any disability, civilian noninstitutionalized pop",
     },
     "no_insur": {
-        "kind": "acs_formula",
-        "endpoint": "acs",
-        # B27001 = Health Insurance Coverage Status by Sex by Age.
-        # Layout verified via 2024 ACS 5-yr variables metadata. Age
-        # bins are: <6, 6-18, 19-25, 26-34, 35-44, 45-54, 55-64,
-        # 65-74, 75+. Each age triple = (total, with, without).
-        # We report % uninsured ages 19-64 (proxy for the dictionary's
-        # "Ages 18-64" label; ACS lacks a stand-alone 18 slot).
-        #   Male   totals 19-64: 009, 012, 015, 018, 021
-        #   Male   uninsured  : 011, 014, 017, 020, 023
-        #   Female totals 19-64: 037, 040, 043, 046, 049
-        #   Female uninsured  : 039, 042, 045, 048, 051
-        "num": [
-            "B27001_011E",
-            "B27001_014E",
-            "B27001_017E",
-            "B27001_020E",
-            "B27001_023E",
-            "B27001_039E",
-            "B27001_042E",
-            "B27001_045E",
-            "B27001_048E",
-            "B27001_051E",
-        ],
-        "den": [
-            "B27001_009E",
-            "B27001_012E",
-            "B27001_015E",
-            "B27001_018E",
-            "B27001_021E",
-            "B27001_037E",
-            "B27001_040E",
-            "B27001_043E",
-            "B27001_046E",
-            "B27001_049E",
-        ],
-        "scale": 100,
-        "table": "B27001",
-        "notes": "% uninsured ages 19-64 (B27001 no-coverage / total, male+female age bins)",
+        # PLACES ACCESS2 = "Current lack of health insurance among
+        # adults aged 18-64 years" — an EXACT match to the dashboard
+        # indicator label "Uninsured (Ages 18-64) (%)" and to the
+        # upstream AHRQ SDoH tract column of the same name. Metric
+        # identity holds: same age range, same "no coverage" concept.
+        # This supersedes the earlier B27001 19-64 proxy (definitional
+        # mismatch — B27001 has no stand-alone 18-year-old slot).
+        "kind": "places",
+        "measure_id": "ACCESS2",
+        "notes": (
+            "CDC PLACES 2024 ACCESS2 = adults 18-64 without health "
+            "insurance (exact match to dashboard indicator label)"
+        ),
     },
     "private_ins": {
         "kind": "acs_direct",
@@ -457,25 +445,54 @@ INDICATOR_SOURCES: dict[str, dict] = {
         "notes": "DP04 published % vacant of total housing units",
     },
     "cost_owner": {
-        "kind": "acs_direct",
+        # DP04_0114PE is ONLY 30.0-34.9% SMOCAPI. To get >=30% we must
+        # also add the 35%+ bucket (DP04_0115PE). Both PE variables
+        # share the same denominator (mortgaged owners with computed
+        # SMOCAPI), so their sum is a valid published-percent union.
+        "kind": "acs_sum_percent",
         "endpoint": "profile",
-        "var": "DP04_0114PE",
+        "vars": ["DP04_0114PE", "DP04_0115PE"],
         "table": "DP04",
-        "notes": "DP04 % owners-with-mortgage paying 30%+ of income",
+        "notes": (
+            "DP04 % owners with a mortgage paying >=30% of income "
+            "(SMOCAPI 30-34.9% + 35%+, published-percent sum)"
+        ),
     },
     "cost_rent": {
-        "kind": "acs_direct",
+        # DP04_0142PE is ONLY 35%+ GRAPI. To get >=30% we must also
+        # add the 30-34.9% bucket (DP04_0141PE). Both PE variables
+        # share the same denominator (renter-occupied units with
+        # computed GRAPI), so their sum is a valid published-percent
+        # union.
+        "kind": "acs_sum_percent",
         "endpoint": "profile",
-        "var": "DP04_0142PE",
+        "vars": ["DP04_0141PE", "DP04_0142PE"],
         "table": "DP04",
-        "notes": "DP04 % renters paying 30%+ of income (GRAPI 30%+)",
+        "notes": (
+            "DP04 % renters paying >=30% of income "
+            "(GRAPI 30-34.9% + 35%+, published-percent sum)"
+        ),
     },
     "housing_old": {
-        "kind": "acs_direct",
+        # DP04_0026PE is ONLY "Built 1939 or earlier". To get "built
+        # before 1980" we must sum the five pre-1980 decade buckets:
+        # 1970-79, 1960-69, 1950-59, 1940-49, 1939 or earlier.
+        # All five DP04 age-of-structure PE variables share the same
+        # denominator (total housing units).
+        "kind": "acs_sum_percent",
         "endpoint": "profile",
-        "var": "DP04_0026PE",
+        "vars": [
+            "DP04_0022PE",  # Built 1970-1979
+            "DP04_0023PE",  # Built 1960-1969
+            "DP04_0024PE",  # Built 1950-1959
+            "DP04_0025PE",  # Built 1940-1949
+            "DP04_0026PE",  # Built 1939 or earlier
+        ],
         "table": "DP04",
-        "notes": "DP04 % housing units built 1979 or earlier",
+        "notes": (
+            "DP04 % housing units built before 1980 "
+            "(sum of decade buckets 1970-79 through 1939-and-earlier)"
+        ),
     },
     # ------ Broadband / vehicles / commute ------
     "bb_access": {
@@ -691,6 +708,23 @@ def _ts() -> str:
     return datetime.now(EST).strftime("%Y-%m-%d %H:%M:%S %Z")
 
 
+def _moe_companion(var: str) -> str | None:
+    """Return the MOE companion variable name for an ACS estimate var.
+
+    B/S table estimate  var ending in "E"  -> replace last char with "M"
+    DP profile estimate ending in "PE"     -> "PM"; "E" -> "M"
+    """
+    if var.startswith("DP"):
+        if var.endswith("PE"):
+            return var[:-2] + "PM"
+        if var.endswith("E"):
+            return var[:-1] + "M"
+        return None
+    if var.endswith("E"):
+        return var[:-1] + "M"
+    return None
+
+
 # ---------------------------------------------------------------------------
 # ACS fetch
 # ---------------------------------------------------------------------------
@@ -744,7 +778,22 @@ def _fetch_acs_batch(
 
 
 def _to_float(raw: str | None) -> float | None:
-    """Census sentinels: null / '-666666666' / '' -> None; else float."""
+    """Census sentinels: null / '-666666666' / '' -> None; else float.
+
+    Per Census's "jam values" convention (see "Understanding and Using
+    ACS Data" appendix on estimate flags), any negative value with
+    absolute magnitude >= ~200M is a not-real-data sentinel:
+        -111111111 "-"   estimate could not be calculated
+        -222222222 "N/A" not available
+        -333333333 "***" MOE below level of reliability
+        -444444444 "(X)" not applicable
+        -555555555 "***" MOE could not be computed / insufficient sample
+        -666666666 "-"   median outside upper bracket
+        -888888888 "**"  MOE not appropriate (e.g. exact count)
+        -999999999 "*"   estimate/MOE could not be computed
+    The threshold covers all of these without false-positiving on
+    real negative estimates (rare in ACS anyway).
+    """
     if raw is None:
         return None
     s = str(raw).strip()
@@ -754,8 +803,38 @@ def _to_float(raw: str | None) -> float | None:
         f = float(s)
     except ValueError:
         return None
-    # ACS jam values (see Census docs).
-    if f <= -666666666:
+    if f <= -100_000_000:
+        return None
+    return f
+
+
+def _to_moe(raw: str | None) -> float | None:
+    """Parse a raw MOE cell with ACS's flag semantics.
+
+    Distinct from _to_float() because MOE has two "no value" cases:
+
+    * -555555555 ("MOE not applicable"): the underlying estimate is
+      an exact count (e.g. B01001_001E total population from the
+      census frame). Correct MOE arithmetic treats this as 0, not
+      unknown. Returning 0 here lets ratio-MOE formulas work when
+      one side has a sampled numerator and an exact denominator.
+    * everything else in the jam-value range (-666.. through
+      -999999999): actually unknown -> None (skip MOE arithmetic).
+
+    None for empty/null/parse-failed.
+    """
+    if raw is None:
+        return None
+    s = str(raw).strip()
+    if not s or s in {"null", "NaN", "None"}:
+        return None
+    try:
+        f = float(s)
+    except ValueError:
+        return None
+    if f == -555555555:
+        return 0.0
+    if f <= -100_000_000:
         return None
     return f
 
@@ -862,26 +941,14 @@ def collect_acs_vars() -> dict[str, list[str]]:
         elif spec["kind"] == "acs_formula":
             plan[spec["endpoint"]].update(spec["num"])
             plan[spec["endpoint"]].update(spec["den"])
-
-    # Add MOE companions:
-    #   B/S table var ending in "E" -> replace last char with "M"
-    #   DP profile     ending in "PE" -> "PM"; "E" -> "M"
-    def moe_for(var: str) -> str | None:
-        if var.startswith("DP"):
-            if var.endswith("PE"):
-                return var[:-2] + "PM"
-            if var.endswith("E"):
-                return var[:-1] + "M"
-            return None
-        if var.endswith("E"):
-            return var[:-1] + "M"
-        return None
+        elif spec["kind"] == "acs_sum_percent":
+            plan[spec["endpoint"]].update(spec["vars"])
 
     final: dict[str, list[str]] = {}
     for ep, vars_ in plan.items():
         expanded = set(vars_)
         for v in list(vars_):
-            m = moe_for(v)
+            m = _moe_companion(v)
             if m:
                 expanded.add(m)
         final[ep] = sorted(expanded)
@@ -946,7 +1013,7 @@ def compute_row(
             if (var.startswith("DP") and var.endswith("PE"))
             else (var[:-1] + "M" if var.endswith("E") else None)
         )
-        moe = _to_float(pool.get(moe_var)) if moe_var else None
+        moe = _to_moe(pool.get(moe_var)) if moe_var else None
         # ACS "not applicable" / suppressed sentinels
         base.update(
             {
@@ -983,10 +1050,29 @@ def compute_row(
         num = sum(num_vals)
         den = sum(den_vals)
         val = (spec["scale"] * num / den) if den else None
+        # MOE arithmetic per Census "Understanding and Using ACS Data" §8:
+        #   MOE_sum   = sqrt(sum(MOE_i^2))
+        #   MOE_ratio = (1/den) * sqrt(num_moe^2 + (num/den)^2 * den_moe^2)
+        # For a percent (scale=100), multiply the ratio MOE by 100.
+        moe = None
+        num_moes = [_to_moe(pool.get(_moe_companion(v))) for v in spec["num"]]
+        den_moes = [_to_moe(pool.get(_moe_companion(v))) for v in spec["den"]]
+        if (
+            all(m is not None for m in num_moes)
+            and all(m is not None for m in den_moes)
+            and den
+        ):
+            num_moe = math.sqrt(sum(m * m for m in num_moes))
+            den_moe = math.sqrt(sum(m * m for m in den_moes))
+            ratio = num / den
+            ratio_moe = (
+                math.sqrt(num_moe * num_moe + ratio * ratio * den_moe * den_moe) / den
+            )
+            moe = spec["scale"] * ratio_moe
         base.update(
             {
                 "value": val,
-                "moe": None,  # explicit MOE combine skipped; downstream can add
+                "moe": moe,
                 "source_dataset": f"ACS 5-year {ACS_VINTAGE}",
                 "source_table": spec.get("table"),
                 "source_variable": "+".join(spec["num"])
@@ -994,6 +1080,45 @@ def compute_row(
                 + "+".join(spec["den"]),
                 "vintage": ACS_VINTAGE,
                 "estimate_basis": "derived_county_formula",
+            }
+        )
+        return base
+
+    if kind == "acs_sum_percent":
+        ep = spec["endpoint"]
+        pool = acs_data.get(ep, {}).get(county_fips, {})
+        vals = [_to_float(pool.get(v)) for v in spec["vars"]]
+        if any(v is None for v in vals):
+            base.update(
+                {
+                    "source_dataset": f"ACS 5-year {ACS_VINTAGE}",
+                    "source_table": spec.get("table"),
+                    "source_variable": " + ".join(spec["vars"]),
+                    "vintage": ACS_VINTAGE,
+                    "estimate_basis": "published_county",
+                    "notes": spec.get("notes", "") + " [missing component PE var]",
+                }
+            )
+            return base
+        val = sum(vals)
+        # MOE_sum = sqrt(sum(MOE_i^2)) across the PE-component MOEs (PM
+        # companions). All components share the same denominator, so
+        # this reduces to the standard aggregated-count MOE arithmetic
+        # scaled into percent space by the shared denominator (which
+        # cancels because both val and MOE are already percents).
+        moe = None
+        pm_vals = [_to_moe(pool.get(_moe_companion(v))) for v in spec["vars"]]
+        if all(m is not None for m in pm_vals):
+            moe = math.sqrt(sum(m * m for m in pm_vals))
+        base.update(
+            {
+                "value": val,
+                "moe": moe,
+                "source_dataset": f"ACS 5-year {ACS_VINTAGE}",
+                "source_table": spec.get("table"),
+                "source_variable": " + ".join(spec["vars"]),
+                "vintage": ACS_VINTAGE,
+                "estimate_basis": "published_county",
             }
         )
         return base

@@ -232,7 +232,7 @@
             </div>
             <div class="analysis-panel">
               <h3>Correlation matrix — 12 headline indicators</h3>
-              <div class="chart-box" style="min-height:280px;"><canvas id="corrChart"></canvas></div>
+              <div class="chart-box" style="min-height:560px;"><canvas id="corrChart"></canvas></div>
             </div>
           </div>
         </div>
@@ -272,9 +272,17 @@
                 We do not use unweighted means, and we do not
                 aggregate for indicators whose metric identity has not
                 been validated &#8212; a defensible universe is not
-                permission to aggregate. <b>Blank cells</b> mean
-                neither a direct county pull nor a validated
-                aggregation is available. <b>Cell shading</b> shows position vs.
+                permission to aggregate.
+                <b>Blank cells (&mdash;)</b> mean no direct county
+                pull and no defensible aggregation.
+                <b>Suppressed cells (&#8226;&#8226;&#8226;)</b> mean
+                the direct estimate exists but its coefficient of
+                variation exceeds 40% &#8212; the sample is too thin
+                to publish reliably (hover to see the CV).
+                Every published cell carries a small <b>CV chip</b>
+                (e.g. "5%") reporting the estimate's coefficient of
+                variation; hover for the underlying MOE.
+                <b>Cell shading</b> shows position vs.
                 the Tennessee benchmark for that indicator: shaded one
                 tone if the county is more than 2% above the state
                 value, the other tone if more than 2% below, and
@@ -316,7 +324,7 @@
               </div>
               <div id="trendMeta" style="font-size:12px; color:var(--gray-800); margin-bottom:8px;"></div>
               <div id="trendPlain" style="font-size:12px; color:var(--gray-800); background:var(--gray-100); border-radius:4px; padding:8px 12px; margin-bottom:8px;" hidden></div>
-              <div class="chart-box" style="min-height: 300px;"><canvas id="trendChart"></canvas></div>
+              <div class="chart-box" style="min-height: 520px;"><canvas id="trendChart"></canvas></div>
             </div>
             <div class="analysis-panel" style="flex: 2 1 0; min-height: 240px;">
               <h3>How much did each tract change?</h3>
@@ -326,7 +334,7 @@
                 populations are small — the county average smooths
                 that noise out.
               </div>
-              <div class="chart-box" style="min-height: 200px;"><canvas id="trendHistogram"></canvas></div>
+              <div class="chart-box" style="min-height: 360px;"><canvas id="trendHistogram"></canvas></div>
               <div id="trendMovers" style="margin-top:12px; font-size:12px;" hidden></div>
             </div>
           </div>

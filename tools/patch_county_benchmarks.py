@@ -1,4 +1,27 @@
-"""One-off fast-path fix for the community-profiles CountyValue
+"""DEPRECATED (2026-08-20). Superseded by tools/build_county_benchmarks.py.
+
+Do not run this script. It computes county estimates as tract means
+from the vendor xlsx, which is methodologically wrong for percentage
+and median indicators (means of tract %s are not the county %; means
+of tract medians are not the county median). This tool existed only
+as a fast-path recovery for the community-profiles CountyValue
+replication bug and is retained solely for git history.
+
+The correct pipeline is:
+
+    tools/build_county_benchmarks.py     # direct-pull county cache
+       -> data/county_benchmarks_tn.parquet
+       -> build_rollout_dataset.py       # applies parquet as authoritative
+       -> build_arcgis_layer.py          # emits <indicator>_county fields
+       -> publish_to_arcgis.py           # publishes layer
+
+Running this file now exits immediately. If you have a genuine need
+to fall back to tract means (you almost certainly do not), delete the
+guard below and understand what you are doing first.
+
+--- original docstring preserved below for context ---
+
+One-off fast-path fix for the community-profiles CountyValue
 replication bug (2026-08-20). Rewrites <CountyValue> in each pilot
 county XML with the correct per-county mean computed directly from
 the vendor 2024 data.xlsx (ACS) and CDC PLACES county-level API
@@ -274,7 +297,29 @@ def main(argv=None) -> int:
     ap.add_argument(
         "--dry-run", action="store_true", help="Report changes without writing files."
     )
+    ap.add_argument(
+        "--i-understand-this-is-deprecated",
+        action="store_true",
+        help=(
+            "Required to bypass the deprecation guard. "
+            "Use tools/build_county_benchmarks.py instead."
+        ),
+    )
     args = ap.parse_args(argv)
+
+    if not args.i_understand_this_is_deprecated:
+        raise SystemExit(
+            "\n[patch_county_benchmarks.py] DEPRECATED — refusing to run.\n\n"
+            "This tool computes county estimates as tract means, which is\n"
+            "methodologically wrong for percentages and medians. Use:\n\n"
+            "    python tools/build_county_benchmarks.py\n\n"
+            "which pulls authoritative direct-county estimates from the\n"
+            "Census county API + CDC PLACES county API and writes\n"
+            "data/county_benchmarks_tn.parquet. The rollout build then\n"
+            "picks those up as the authoritative _county source.\n\n"
+            "If you really must run this (you probably don't), pass\n"
+            "--i-understand-this-is-deprecated.\n"
+        )
 
     if not VENDOR_XLSX.exists():
         raise SystemExit(f"Vendor file missing: {VENDOR_XLSX}")
