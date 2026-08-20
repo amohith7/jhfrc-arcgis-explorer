@@ -62,7 +62,81 @@
     header .titles { justify-self: center; text-align: center; }
     header .titles h1 { margin: 0; font-size: 16px; font-weight: 600; line-height: 1.15; }
     header .titles .subtitle { color: #d1d5db; font-size: 11px; margin-top: 2px; }
-    header .status { justify-self: end; font-size: 11px; color: #d1d5db; background: rgba(253,183,54,0.12); border: 1px solid rgba(253,183,54,0.35); padding: 5px 10px; border-radius: 4px; white-space: nowrap; }
+    header .status { font-size: 11px; color: #d1d5db; background: rgba(253,183,54,0.12); border: 1px solid rgba(253,183,54,0.35); padding: 5px 10px; border-radius: 4px; white-space: nowrap; }
+    header .status-wrap {
+      justify-self: end;
+      display: flex; align-items: center; gap: 8px;
+      position: relative;
+    }
+    /* Data coverage badge (task #130) — compact, ubiquitous. Click
+       to open a small popover with source, vintage, universe,
+       suppression count, uncertainty type. */
+    .coverage-badge {
+      font-size: 11px; color: #d1d5db;
+      background: rgba(255,255,255,0.08);
+      border: 1px solid rgba(255,255,255,0.18);
+      padding: 5px 10px; border-radius: 4px;
+      cursor: pointer; white-space: nowrap;
+      font-family: inherit;
+    }
+    .coverage-badge:hover { background: rgba(255,255,255,0.14); color: #fff; }
+    .coverage-badge:focus-visible { outline: 2px solid var(--gold); outline-offset: 1px; }
+    .coverage-popover {
+      position: absolute; top: calc(100% + 8px); right: 0;
+      z-index: 1500;
+      background: white; color: var(--gray-800);
+      border: 1px solid var(--gray-300); border-radius: 4px;
+      box-shadow: 0 6px 20px rgba(0,0,0,0.18);
+      padding: 12px 14px; min-width: 280px; max-width: 380px;
+      font-size: 12px; line-height: 1.45;
+    }
+    .coverage-popover[hidden] { display: none; }
+    .coverage-popover h4 { margin: 0 0 8px; font-size: 12px; font-weight: 700; color: var(--navy); text-transform: uppercase; letter-spacing: 0.03em; }
+    .coverage-popover dl { margin: 0; font-size: 11px; }
+    .coverage-popover dt { color: var(--gray-600); font-weight: 600; margin-top: 6px; }
+    .coverage-popover dd { margin: 2px 0 0 0; }
+    /* Indicator search input above each Primary / Secondary select
+       (task #128). Filters visible <option>s in place. */
+    .indicator-search {
+      width: 100%; padding: 5px 8px;
+      border: 1px solid var(--gray-300); border-radius: 4px;
+      font-size: 12px; background: white;
+      margin-bottom: 4px;
+    }
+    .indicator-search:focus { outline: 2px solid var(--navy); outline-offset: -1px; }
+    /* Key Findings panel (task #131) — 3 deterministic sentences per
+       view, sitting above the tab content. Finding -> Details ->
+       Methodology structure per finding. */
+    .key-findings {
+      background: white;
+      border-bottom: 1px solid var(--gray-200);
+      padding: 10px 16px 8px;
+      font-size: 12px; line-height: 1.5;
+    }
+    .key-findings[hidden] { display: none; }
+    .key-findings h3 {
+      margin: 0 0 6px;
+      font-size: 10px; text-transform: uppercase; letter-spacing: 0.06em;
+      color: var(--gray-600); font-weight: 700;
+    }
+    .key-findings ol { margin: 0; padding-left: 20px; }
+    .key-findings li { margin: 4px 0; color: var(--gray-800); }
+    .key-findings .kf-finding { font-weight: 600; }
+    .key-findings .kf-detail { color: var(--gray-800); font-weight: 400; margin-left: 4px; }
+    .key-findings .kf-empty { color: var(--gray-600); font-style: italic; }
+    /* Reliability tier badge (task #129 MVP) — three tiers, source-
+       aware. NOT green/yellow/red (semantic confusion). Neutral
+       shades + explicit text. */
+    .reliability {
+      display: inline-block;
+      font-size: 10px; font-weight: 600;
+      padding: 1px 5px; border-radius: 3px;
+      margin-left: 4px; vertical-align: middle;
+      text-transform: uppercase; letter-spacing: 0.03em;
+    }
+    .reliability.high { background: var(--gray-100); color: var(--gray-800); border: 1px solid var(--gray-300); }
+    .reliability.some { background: rgba(253,183,54,0.10); color: #92650b; border: 1px solid rgba(253,183,54,0.45); }
+    .reliability.low  { background: rgba(220,38,38,0.06); color: #7a1414; border: 1px solid rgba(220,38,38,0.30); }
     /* Inline "link-style" button used in the subtitle for the About
        trigger and elsewhere. Keeps semantics as <button> for
        keyboard/screen-reader users while reading as a link. */
