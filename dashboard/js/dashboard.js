@@ -1057,12 +1057,38 @@
             : ind.source;
         parts.push(`<dt>Source</dt><dd>${expanded}${ind.table ? ` · Table ${ind.table}` : ind.measure_id ? ` · Measure ${ind.measure_id}` : ''}</dd>`);
       }
-      if (ind.universe) parts.push(`<dt>Universe</dt><dd>${ind.universe}</dd>`);
+      // Universe is either a legacy string ("Households") or, after
+      // task #123, a dict { label, acs_vars, formula }. Render whichever.
+      if (ind.universe) {
+        const uLabel = typeof ind.universe === 'string'
+          ? ind.universe
+          : (ind.universe.label || '');
+        if (uLabel) parts.push(`<dt>Universe</dt><dd>${uLabel}</dd>`);
+      }
       if (ind.limitation) parts.push(`<dt>Limitation</dt><dd>${ind.limitation}</dd>`);
       const ref = [];
       if (typeof ind.us_avg === 'number') ref.push(`US ${fmt(ind.us_avg, ind)}`);
       if (typeof ind.tn_avg === 'number') ref.push(`TN ${fmt(ind.tn_avg, ind)}`);
       if (ref.length) parts.push(`<dt>Reference values</dt><dd>${ref.join(' &middot; ')}</dd>`);
+      // County-value provenance (task #123 governance). Tells the
+      // user why Compare Counties may show a value, a ‡ aggregation,
+      // or a blank for this specific indicator.
+      if (ind.aggregation) {
+        const a = ind.aggregation;
+        let msg = '';
+        if (a.method === 'universe_weighted' && a.validation_status === 'validated') {
+          msg = 'Published county estimate where available; universe-weighted aggregation of tract estimates (validated against official ACS) elsewhere.';
+        } else if (a.method === 'universe_weighted' && a.validation_status === 'unresolved') {
+          msg = 'Published county estimate where available; blank elsewhere. Universe recipe is defensible but metric identity is not yet validated against an official ACS county estimate, so tract aggregation is disabled by governance.';
+        } else if (a.method === 'not_aggregable') {
+          if (a.reason) {
+            msg = 'Published county estimate where available; blank elsewhere. ' + a.reason;
+          } else {
+            msg = 'Published county estimate where available; blank elsewhere (this indicator is not defensibly aggregated from tract estimates).';
+          }
+        }
+        if (msg) parts.push(`<dt>Compare Counties basis</dt><dd>${msg}</dd>`);
+      }
       if (ind.hasTrend === false) {
         parts.push(`<dt>Trend</dt><dd>Change over time not shown (${ind.source === 'PLACES' ? 'CDC PLACES estimates are not comparable across releases' : 'delta not published for this indicator'}).</dd>`);
       } else if (ind.trendCaveat === 'places_model_refit') {
