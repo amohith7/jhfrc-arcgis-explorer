@@ -1,10 +1,10 @@
 {
   "_meta": {
     "schema_version": 1,
-    "layer_name": "jhfrc_tracts_v7",
-    "layer_url": "https://services.arcgis.com/UnTXoPXBYERF0OH6/arcgis/rest/services/jhfrc_tracts_v7/FeatureServer/0",
-    "layer_item_id": "49202548c7ab4652a0db45ebc4d59cac",
-    "source_item_id": "",
+    "layer_name": "jhfrc_tracts_v10",
+    "layer_url": "https://services.arcgis.com/UnTXoPXBYERF0OH6/arcgis/rest/services/jhfrc_tracts_v10/FeatureServer/0",
+    "layer_item_id": "e3cf6099e6ea4ccf830f2d8887726275",
+    "source_item_id": "cf0804491ae740b9b980001113961e68",
     "generated_for": "JHFRC Regional Explorer",
     "notes": "Per-indicator metadata for the info-icon in the dashboard UI (Brief 3 F1) and for CSV export provenance (Brief 3 D4). Every indicator carries source, table/measure id, universe, why-it-matters, main limitation, and state + national reference values. ACS reference values are 2020-2024 unless otherwise noted. PLACES reference values are 2024 release, model-based estimates. Values are approximate and intended for interpretation, not for citation without independent verification.",
     "sources": {
@@ -191,9 +191,26 @@
           "B09002_001E"
         ],
         "formula": "B09002_001E"
+      },
+      "OWNER_OCC_WITH_MORTGAGE": {
+        "label": "Owner-occupied housing units with a mortgage where SMOCAPI can be computed (B25091_002E excluding \"not computed\" B25091_012E)",
+        "acs_vars": [
+          "B25091_002E",
+          "B25091_012E"
+        ],
+        "formula": "B25091_002E - B25091_012E"
+      },
+      "RENTER_PAYING_RENT_GRAPI_COMPUTED": {
+        "label": "Renter-occupied units paying cash rent where GRAPI can be computed (B25070_001E excluding B25070_011E \"not computed\")",
+        "acs_vars": [
+          "B25070_001E",
+          "B25070_011E"
+        ],
+        "formula": "B25070_001E - B25070_011E"
       }
     },
-    "universe_recipe_note": "Per-indicator universe fields (<indicator>.universe) name the ACS variable or formula that defines the denominator that indicator's rate is calculated against. Used for universe-weighted tract aggregation when a published county estimate is unavailable (task #123). PLACES adult measures use ADULT_POP_18P per CDC methodology."
+    "universe_recipe_note": "Per-indicator universe fields (<indicator>.universe) name the ACS variable or formula that defines the denominator that indicator's rate is calculated against. Used for universe-weighted tract aggregation when a published county estimate is unavailable (task #123). PLACES adult measures use ADULT_POP_18P per CDC methodology.",
+    "aggregation_note": "Per-indicator .aggregation controls whether Compare Counties may compute a universe-weighted tract aggregation when the published <CountyValue> is missing. method=universe_weighted means sum(rate x universe) / sum(universe) is defensible; method=not_aggregable means the cell stays blank (typically medians, indices, or indicators without a proper universe recipe). min_coverage is the minimum fraction of a county's tracts that must have both a valid rate and a valid universe for the aggregation to be shown; below that, blank."
   },
   "indicators": {
     "pov_below": {
@@ -215,7 +232,12 @@
       "tn_avg": 13.5,
       "hasTrend": true,
       "compositeEligible": true,
-      "trendGeographyBasis": "harmonized_2020_tract"
+      "trendGeographyBasis": "harmonized_2020_tract",
+      "aggregation": {
+        "method": "universe_weighted",
+        "min_coverage": 0.8,
+        "reason": null
+      }
     },
     "hh_snap": {
       "label": "Households Receiving Food Stamps (%)",
@@ -236,7 +258,12 @@
       "tn_avg": 12.5,
       "hasTrend": true,
       "compositeEligible": true,
-      "trendGeographyBasis": "harmonized_2020_tract"
+      "trendGeographyBasis": "harmonized_2020_tract",
+      "aggregation": {
+        "method": "universe_weighted",
+        "min_coverage": 0.8,
+        "reason": null
+      }
     },
     "hh_pubasst": {
       "label": "Households Receiving Public Assistance (%)",
@@ -257,10 +284,15 @@
       "tn_avg": 1.8,
       "hasTrend": true,
       "compositeEligible": true,
-      "trendGeographyBasis": "harmonized_2020_tract"
+      "trendGeographyBasis": "harmonized_2020_tract",
+      "aggregation": {
+        "method": "universe_weighted",
+        "min_coverage": 0.8,
+        "reason": null
+      }
     },
     "emp_adults": {
-      "label": "Employed Adults (%)",
+      "label": "Employment-to-Population Ratio (Age 16+) (%)",
       "domain": "Economic",
       "unit": "percent",
       "source": "ACS",
@@ -278,7 +310,12 @@
       "tn_avg": 58.2,
       "hasTrend": true,
       "compositeEligible": true,
-      "trendGeographyBasis": "harmonized_2020_tract"
+      "trendGeographyBasis": "harmonized_2020_tract",
+      "aggregation": {
+        "method": "universe_weighted",
+        "min_coverage": 0.8,
+        "reason": null
+      }
     },
     "not_labor": {
       "label": "Not in Labor Force (%)",
@@ -299,7 +336,12 @@
       "tn_avg": 38.1,
       "hasTrend": true,
       "compositeEligible": true,
-      "trendGeographyBasis": "harmonized_2020_tract"
+      "trendGeographyBasis": "harmonized_2020_tract",
+      "aggregation": {
+        "method": "universe_weighted",
+        "min_coverage": 0.8,
+        "reason": null
+      }
     },
     "mhi": {
       "label": "Median Household Income ($)",
@@ -307,14 +349,18 @@
       "unit": "currency",
       "source": "ACS",
       "table": "B19013",
-      "universe": "Households",
       "why_it_matters": "The single most decision-relevant income measure for lending, siting, and CRA analysis.",
       "limitation": "Median is unstable at small denominators; can shift materially year to year in low-population tracts.",
       "us_avg": 75149,
       "tn_avg": 62166,
       "hasTrend": true,
       "compositeEligible": true,
-      "trendGeographyBasis": "harmonized_2020_tract"
+      "trendGeographyBasis": "harmonized_2020_tract",
+      "aggregation": {
+        "method": "not_aggregable",
+        "min_coverage": null,
+        "reason": "Median household income; medians do not aggregate as weighted means of tract rates."
+      }
     },
     "mpci": {
       "label": "Mean Per Capita Income ($)",
@@ -335,7 +381,12 @@
       "tn_avg": 36700,
       "hasTrend": true,
       "compositeEligible": true,
-      "trendGeographyBasis": "harmonized_2020_tract"
+      "trendGeographyBasis": "harmonized_2020_tract",
+      "aggregation": {
+        "method": "universe_weighted",
+        "min_coverage": 0.8,
+        "reason": null
+      }
     },
     "gini": {
       "label": "Gini Index (Income Inequality)",
@@ -343,20 +394,18 @@
       "unit": "index",
       "source": "ACS",
       "table": "B19083",
-      "universe": {
-        "label": "Total households",
-        "acs_vars": [
-          "B11001_001E"
-        ],
-        "formula": "B11001_001E"
-      },
       "why_it_matters": "Within-tract income dispersion; a high Gini in a nominally affluent tract can indicate a distressed subpopulation.",
       "limitation": "Tract-level Gini has wide MOEs; treat as a rough band, not a precise value.",
       "us_avg": 0.48,
       "tn_avg": 0.47,
       "hasTrend": true,
       "compositeEligible": true,
-      "trendGeographyBasis": "harmonized_2020_tract"
+      "trendGeographyBasis": "harmonized_2020_tract",
+      "aggregation": {
+        "method": "not_aggregable",
+        "min_coverage": null,
+        "reason": "Gini index measures within-unit inequality; the county Gini is not a weighted mean of tract Ginis."
+      }
     },
     "edu_lths": {
       "label": "Less than High School Education (%)",
@@ -377,7 +426,12 @@
       "tn_avg": 11.2,
       "hasTrend": true,
       "compositeEligible": true,
-      "trendGeographyBasis": "harmonized_2020_tract"
+      "trendGeographyBasis": "harmonized_2020_tract",
+      "aggregation": {
+        "method": "universe_weighted",
+        "min_coverage": 0.8,
+        "reason": null
+      }
     },
     "edu_posths": {
       "label": "Any Post-High School Education (%)",
@@ -398,7 +452,12 @@
       "tn_avg": 60.8,
       "hasTrend": true,
       "compositeEligible": true,
-      "trendGeographyBasis": "harmonized_2020_tract"
+      "trendGeographyBasis": "harmonized_2020_tract",
+      "aggregation": {
+        "method": "universe_weighted",
+        "min_coverage": 0.8,
+        "reason": null
+      }
     },
     "edu_assoc": {
       "label": "Associate's Degree (%)",
@@ -419,7 +478,12 @@
       "tn_avg": 8.5,
       "hasTrend": true,
       "compositeEligible": true,
-      "trendGeographyBasis": "harmonized_2020_tract"
+      "trendGeographyBasis": "harmonized_2020_tract",
+      "aggregation": {
+        "method": "universe_weighted",
+        "min_coverage": 0.8,
+        "reason": null
+      }
     },
     "edu_ba": {
       "label": "Bachelor's Degree (%)",
@@ -440,7 +504,12 @@
       "tn_avg": 19.5,
       "hasTrend": true,
       "compositeEligible": true,
-      "trendGeographyBasis": "harmonized_2020_tract"
+      "trendGeographyBasis": "harmonized_2020_tract",
+      "aggregation": {
+        "method": "universe_weighted",
+        "min_coverage": 0.8,
+        "reason": null
+      }
     },
     "edu_grad": {
       "label": "Graduate/Professional Degree (%)",
@@ -461,7 +530,12 @@
       "tn_avg": 11.2,
       "hasTrend": true,
       "compositeEligible": true,
-      "trendGeographyBasis": "harmonized_2020_tract"
+      "trendGeographyBasis": "harmonized_2020_tract",
+      "aggregation": {
+        "method": "universe_weighted",
+        "min_coverage": 0.8,
+        "reason": null
+      }
     },
     "youth_dis": {
       "label": "Teens (Ages 16-19) Not in School & Unemployed (%)",
@@ -482,7 +556,12 @@
       "tn_avg": 7.1,
       "hasTrend": true,
       "compositeEligible": true,
-      "trendGeographyBasis": "harmonized_2020_tract"
+      "trendGeographyBasis": "harmonized_2020_tract",
+      "aggregation": {
+        "method": "universe_weighted",
+        "min_coverage": 0.8,
+        "reason": null
+      }
     },
     "any_disab": {
       "label": "Any Disability (%)",
@@ -503,7 +582,12 @@
       "tn_avg": 16.7,
       "hasTrend": true,
       "compositeEligible": true,
-      "trendGeographyBasis": "harmonized_2020_tract"
+      "trendGeographyBasis": "harmonized_2020_tract",
+      "aggregation": {
+        "method": "universe_weighted",
+        "min_coverage": 0.8,
+        "reason": null
+      }
     },
     "no_insur": {
       "label": "Uninsured (Ages 18-64) (%)",
@@ -511,20 +595,18 @@
       "unit": "percent",
       "source": "ACS",
       "table": "S2701",
-      "universe": {
-        "label": "Civilian noninstitutionalized population",
-        "acs_vars": [
-          "B27001_001E"
-        ],
-        "formula": "B27001_001E"
-      },
       "why_it_matters": "The most decision-relevant health-access indicator for FQHC, hospital community-benefit, and Medicaid outreach planning.",
       "limitation": "Point-in-time snapshot; does not reflect coverage churn.",
       "us_avg": 12.3,
       "tn_avg": 14.6,
       "hasTrend": true,
       "compositeEligible": true,
-      "trendGeographyBasis": "harmonized_2020_tract"
+      "trendGeographyBasis": "harmonized_2020_tract",
+      "aggregation": {
+        "method": "not_aggregable",
+        "min_coverage": null,
+        "reason": "Universe requires age 18-64 (or 19-64 per current ACS) civilian noninstitutionalized population; B27001 cannot cleanly express this age band (age 18 is grouped with 6-18). Verify source statistic (S2701 age band) before enabling tract aggregation. Published county_avg remains usable where present."
+      }
     },
     "private_ins": {
       "label": "Private Insurance (All Ages) (%)",
@@ -545,7 +627,12 @@
       "tn_avg": 63.7,
       "hasTrend": true,
       "compositeEligible": true,
-      "trendGeographyBasis": "harmonized_2020_tract"
+      "trendGeographyBasis": "harmonized_2020_tract",
+      "aggregation": {
+        "method": "universe_weighted",
+        "min_coverage": 0.8,
+        "reason": null
+      }
     },
     "medicaid": {
       "label": "Medicaid Coverage (All Ages) (%)",
@@ -566,7 +653,12 @@
       "tn_avg": 22.5,
       "hasTrend": true,
       "compositeEligible": true,
-      "trendGeographyBasis": "harmonized_2020_tract"
+      "trendGeographyBasis": "harmonized_2020_tract",
+      "aggregation": {
+        "method": "universe_weighted",
+        "min_coverage": 0.8,
+        "reason": null
+      }
     },
     "hh_diab": {
       "label": "Diabetes (%)",
@@ -582,7 +674,12 @@
       "hasTrend": true,
       "compositeEligible": false,
       "trendGeographyBasis": "harmonized_2020_tract",
-      "trendCaveat": "places_model_refit"
+      "trendCaveat": "places_model_refit",
+      "aggregation": {
+        "method": "not_aggregable",
+        "min_coverage": null,
+        "reason": "No defensible universe recipe defined; blank when published county value unavailable."
+      }
     },
     "hh_asthma": {
       "label": "Asthma (%)",
@@ -598,7 +695,12 @@
       "hasTrend": true,
       "compositeEligible": false,
       "trendGeographyBasis": "harmonized_2020_tract",
-      "trendCaveat": "places_model_refit"
+      "trendCaveat": "places_model_refit",
+      "aggregation": {
+        "method": "not_aggregable",
+        "min_coverage": null,
+        "reason": "No defensible universe recipe defined; blank when published county value unavailable."
+      }
     },
     "hh_heart": {
       "label": "Coronary Heart Disease (%)",
@@ -614,7 +716,12 @@
       "hasTrend": true,
       "compositeEligible": false,
       "trendGeographyBasis": "harmonized_2020_tract",
-      "trendCaveat": "places_model_refit"
+      "trendCaveat": "places_model_refit",
+      "aggregation": {
+        "method": "not_aggregable",
+        "min_coverage": null,
+        "reason": "No defensible universe recipe defined; blank when published county value unavailable."
+      }
     },
     "hh_bp": {
       "label": "High Blood Pressure (%)",
@@ -630,7 +737,12 @@
       "hasTrend": true,
       "compositeEligible": false,
       "trendGeographyBasis": "harmonized_2020_tract",
-      "trendCaveat": "places_model_refit"
+      "trendCaveat": "places_model_refit",
+      "aggregation": {
+        "method": "not_aggregable",
+        "min_coverage": null,
+        "reason": "No defensible universe recipe defined; blank when published county value unavailable."
+      }
     },
     "hh_bpmed": {
       "label": "Taking Blood Pressure Medication (%)",
@@ -689,7 +801,12 @@
       "hasTrend": true,
       "compositeEligible": false,
       "trendGeographyBasis": "harmonized_2020_tract",
-      "trendCaveat": "places_model_refit"
+      "trendCaveat": "places_model_refit",
+      "aggregation": {
+        "method": "universe_weighted",
+        "min_coverage": 0.8,
+        "reason": null
+      }
     },
     "hh_chol": {
       "label": "High Cholesterol (%)",
@@ -705,7 +822,12 @@
       "hasTrend": true,
       "compositeEligible": false,
       "trendGeographyBasis": "harmonized_2020_tract",
-      "trendCaveat": "places_model_refit"
+      "trendCaveat": "places_model_refit",
+      "aggregation": {
+        "method": "not_aggregable",
+        "min_coverage": null,
+        "reason": "No defensible universe recipe defined; blank when published county value unavailable."
+      }
     },
     "hh_arthr": {
       "label": "Arthritis (%)",
@@ -721,7 +843,12 @@
       "hasTrend": true,
       "compositeEligible": false,
       "trendGeographyBasis": "harmonized_2020_tract",
-      "trendCaveat": "places_model_refit"
+      "trendCaveat": "places_model_refit",
+      "aggregation": {
+        "method": "not_aggregable",
+        "min_coverage": null,
+        "reason": "No defensible universe recipe defined; blank when published county value unavailable."
+      }
     },
     "hh_copd": {
       "label": "Chronic Obstructive Pulmonary Disease (COPD) (%)",
@@ -737,7 +864,12 @@
       "hasTrend": true,
       "compositeEligible": false,
       "trendGeographyBasis": "harmonized_2020_tract",
-      "trendCaveat": "places_model_refit"
+      "trendCaveat": "places_model_refit",
+      "aggregation": {
+        "method": "not_aggregable",
+        "min_coverage": null,
+        "reason": "No defensible universe recipe defined; blank when published county value unavailable."
+      }
     },
     "hh_stroke": {
       "label": "Stroke (%)",
@@ -753,7 +885,12 @@
       "hasTrend": true,
       "compositeEligible": false,
       "trendGeographyBasis": "harmonized_2020_tract",
-      "trendCaveat": "places_model_refit"
+      "trendCaveat": "places_model_refit",
+      "aggregation": {
+        "method": "not_aggregable",
+        "min_coverage": null,
+        "reason": "No defensible universe recipe defined; blank when published county value unavailable."
+      }
     },
     "ph_poor14": {
       "label": "Poor Physical Health >=14 Days (%)",
@@ -769,7 +906,12 @@
       "hasTrend": true,
       "compositeEligible": false,
       "trendGeographyBasis": "harmonized_2020_tract",
-      "trendCaveat": "places_model_refit"
+      "trendCaveat": "places_model_refit",
+      "aggregation": {
+        "method": "not_aggregable",
+        "min_coverage": null,
+        "reason": "No defensible universe recipe defined; blank when published county value unavailable."
+      }
     },
     "mh_poor14": {
       "label": "Poor Mental Health >=14 Days (%)",
@@ -785,7 +927,12 @@
       "hasTrend": true,
       "compositeEligible": false,
       "trendGeographyBasis": "harmonized_2020_tract",
-      "trendCaveat": "places_model_refit"
+      "trendCaveat": "places_model_refit",
+      "aggregation": {
+        "method": "not_aggregable",
+        "min_coverage": null,
+        "reason": "No defensible universe recipe defined; blank when published county value unavailable."
+      }
     },
     "fair_hlth": {
       "label": "Fair or Poor Self-Reported Health (%)",
@@ -801,7 +948,12 @@
       "hasTrend": true,
       "compositeEligible": false,
       "trendGeographyBasis": "harmonized_2020_tract",
-      "trendCaveat": "places_model_refit"
+      "trendCaveat": "places_model_refit",
+      "aggregation": {
+        "method": "not_aggregable",
+        "min_coverage": null,
+        "reason": "No defensible universe recipe defined; blank when published county value unavailable."
+      }
     },
     "smoke": {
       "label": "Smoking (%)",
@@ -817,7 +969,12 @@
       "hasTrend": true,
       "compositeEligible": false,
       "trendGeographyBasis": "harmonized_2020_tract",
-      "trendCaveat": "places_model_refit"
+      "trendCaveat": "places_model_refit",
+      "aggregation": {
+        "method": "not_aggregable",
+        "min_coverage": null,
+        "reason": "No defensible universe recipe defined; blank when published county value unavailable."
+      }
     },
     "binge": {
       "label": "Binge Drinking (%)",
@@ -833,7 +990,12 @@
       "hasTrend": true,
       "compositeEligible": false,
       "trendGeographyBasis": "harmonized_2020_tract",
-      "trendCaveat": "places_model_refit"
+      "trendCaveat": "places_model_refit",
+      "aggregation": {
+        "method": "not_aggregable",
+        "min_coverage": null,
+        "reason": "No defensible universe recipe defined; blank when published county value unavailable."
+      }
     },
     "no_activ": {
       "label": "No Leisure-Time Physical Activity (%)",
@@ -892,7 +1054,12 @@
       "hasTrend": true,
       "compositeEligible": false,
       "trendGeographyBasis": "harmonized_2020_tract",
-      "trendCaveat": "places_model_refit"
+      "trendCaveat": "places_model_refit",
+      "aggregation": {
+        "method": "universe_weighted",
+        "min_coverage": 0.8,
+        "reason": null
+      }
     },
     "obesity": {
       "label": "Obesity (%)",
@@ -908,7 +1075,12 @@
       "hasTrend": true,
       "compositeEligible": false,
       "trendGeographyBasis": "harmonized_2020_tract",
-      "trendCaveat": "places_model_refit"
+      "trendCaveat": "places_model_refit",
+      "aggregation": {
+        "method": "not_aggregable",
+        "min_coverage": null,
+        "reason": "No defensible universe recipe defined; blank when published county value unavailable."
+      }
     },
     "sleep_lt7": {
       "label": "Sleeping Less than 7 Hours (%)",
@@ -924,7 +1096,12 @@
       "hasTrend": true,
       "compositeEligible": false,
       "trendGeographyBasis": "harmonized_2020_tract",
-      "trendCaveat": "places_model_refit"
+      "trendCaveat": "places_model_refit",
+      "aggregation": {
+        "method": "not_aggregable",
+        "min_coverage": null,
+        "reason": "No defensible universe recipe defined; blank when published county value unavailable."
+      }
     },
     "med_rent": {
       "label": "Median Gross Rent ($)",
@@ -932,14 +1109,18 @@
       "unit": "currency",
       "source": "ACS",
       "table": "B25064",
-      "universe": "Renter-occupied housing units paying cash rent",
       "why_it_matters": "Direct market signal for housing investment and rent-burden analysis.",
       "limitation": "Median is unstable at small denominators.",
       "us_avg": 1348,
       "tn_avg": 1030,
       "hasTrend": true,
       "compositeEligible": true,
-      "trendGeographyBasis": "harmonized_2020_tract"
+      "trendGeographyBasis": "harmonized_2020_tract",
+      "aggregation": {
+        "method": "not_aggregable",
+        "min_coverage": null,
+        "reason": "Median gross rent; medians do not aggregate as weighted means of tract rates."
+      }
     },
     "med_home": {
       "label": "Median Home Value ($)",
@@ -947,14 +1128,18 @@
       "unit": "currency",
       "source": "ACS",
       "table": "B25077",
-      "universe": "Owner-occupied housing units",
       "why_it_matters": "Owner-market signal; input to appraisal comps and LMI-vs-market siting.",
       "limitation": "Self-reported by owner; can lag or lead actual market values.",
       "us_avg": 303400,
       "tn_avg": 232100,
       "hasTrend": true,
       "compositeEligible": true,
-      "trendGeographyBasis": "harmonized_2020_tract"
+      "trendGeographyBasis": "harmonized_2020_tract",
+      "aggregation": {
+        "method": "not_aggregable",
+        "min_coverage": null,
+        "reason": "Median home value; medians do not aggregate as weighted means of tract rates."
+      }
     },
     "owner_occ": {
       "label": "Owner-Occupied Households (%)",
@@ -975,7 +1160,12 @@
       "tn_avg": 67.3,
       "hasTrend": true,
       "compositeEligible": true,
-      "trendGeographyBasis": "harmonized_2020_tract"
+      "trendGeographyBasis": "harmonized_2020_tract",
+      "aggregation": {
+        "method": "universe_weighted",
+        "min_coverage": 0.8,
+        "reason": null
+      }
     },
     "renter_occ": {
       "label": "Renter-Occupied Households (%)",
@@ -996,7 +1186,12 @@
       "tn_avg": 32.7,
       "hasTrend": true,
       "compositeEligible": true,
-      "trendGeographyBasis": "harmonized_2020_tract"
+      "trendGeographyBasis": "harmonized_2020_tract",
+      "aggregation": {
+        "method": "universe_weighted",
+        "min_coverage": 0.8,
+        "reason": null
+      }
     },
     "vacant": {
       "label": "Vacant Housing Units (%)",
@@ -1017,7 +1212,12 @@
       "tn_avg": 12.2,
       "hasTrend": true,
       "compositeEligible": true,
-      "trendGeographyBasis": "harmonized_2020_tract"
+      "trendGeographyBasis": "harmonized_2020_tract",
+      "aggregation": {
+        "method": "universe_weighted",
+        "min_coverage": 0.8,
+        "reason": null
+      }
     },
     "cost_owner": {
       "label": "Owners Paying >=30% of Income (%)",
@@ -1026,11 +1226,12 @@
       "source": "ACS",
       "table": "S2506",
       "universe": {
-        "label": "Owner-occupied housing units",
+        "label": "Owner-occupied housing units with a mortgage where SMOCAPI can be computed (B25091_002E excluding \"not computed\" B25091_012E)",
         "acs_vars": [
-          "B25003_002E"
+          "B25091_002E",
+          "B25091_012E"
         ],
-        "formula": "B25003_002E"
+        "formula": "B25091_002E - B25091_012E"
       },
       "why_it_matters": "Owner cost-burden signal; drives owner-side housing-affordability programming.",
       "limitation": "Does not distinguish moderate vs. severe cost burden (30-49% vs 50%+).",
@@ -1038,7 +1239,12 @@
       "tn_avg": 23.8,
       "hasTrend": true,
       "compositeEligible": true,
-      "trendGeographyBasis": "harmonized_2020_tract"
+      "trendGeographyBasis": "harmonized_2020_tract",
+      "aggregation": {
+        "method": "universe_weighted",
+        "min_coverage": 0.8,
+        "reason": null
+      }
     },
     "cost_rent": {
       "label": "Renters Paying >=30% of Income (%)",
@@ -1047,11 +1253,12 @@
       "source": "ACS",
       "table": "S2503",
       "universe": {
-        "label": "Renter-occupied housing units",
+        "label": "Renter-occupied units paying cash rent where GRAPI can be computed (B25070_001E excluding B25070_011E \"not computed\")",
         "acs_vars": [
-          "B25003_003E"
+          "B25070_001E",
+          "B25070_011E"
         ],
-        "formula": "B25003_003E"
+        "formula": "B25070_001E - B25070_011E"
       },
       "why_it_matters": "Rental cost-burden signal; the most common trigger for affordable-housing investment.",
       "limitation": "Does not distinguish moderate vs. severe cost burden.",
@@ -1059,7 +1266,12 @@
       "tn_avg": 46.1,
       "hasTrend": true,
       "compositeEligible": true,
-      "trendGeographyBasis": "harmonized_2020_tract"
+      "trendGeographyBasis": "harmonized_2020_tract",
+      "aggregation": {
+        "method": "universe_weighted",
+        "min_coverage": 0.8,
+        "reason": null
+      }
     },
     "housing_old": {
       "label": "Housing Built Before 1979 (%)",
@@ -1080,7 +1292,12 @@
       "tn_avg": 28.3,
       "hasTrend": true,
       "compositeEligible": true,
-      "trendGeographyBasis": "harmonized_2020_tract"
+      "trendGeographyBasis": "harmonized_2020_tract",
+      "aggregation": {
+        "method": "universe_weighted",
+        "min_coverage": 0.8,
+        "reason": null
+      }
     },
     "bb_access": {
       "label": "Households with Broadband Access (%)",
@@ -1101,7 +1318,12 @@
       "tn_avg": 87.8,
       "hasTrend": true,
       "compositeEligible": true,
-      "trendGeographyBasis": "harmonized_2020_tract"
+      "trendGeographyBasis": "harmonized_2020_tract",
+      "aggregation": {
+        "method": "universe_weighted",
+        "min_coverage": 0.8,
+        "reason": null
+      }
     },
     "no_intnet": {
       "label": "Households without Internet Access (%)",
@@ -1122,7 +1344,12 @@
       "tn_avg": 7.9,
       "hasTrend": true,
       "compositeEligible": true,
-      "trendGeographyBasis": "harmonized_2020_tract"
+      "trendGeographyBasis": "harmonized_2020_tract",
+      "aggregation": {
+        "method": "universe_weighted",
+        "min_coverage": 0.8,
+        "reason": null
+      }
     },
     "no_veh": {
       "label": "Households without a Vehicle (%)",
@@ -1143,7 +1370,12 @@
       "tn_avg": 5.7,
       "hasTrend": true,
       "compositeEligible": true,
-      "trendGeographyBasis": "harmonized_2020_tract"
+      "trendGeographyBasis": "harmonized_2020_tract",
+      "aggregation": {
+        "method": "universe_weighted",
+        "min_coverage": 0.8,
+        "reason": null
+      }
     },
     "transit": {
       "label": "Public Transit Commuters (%)",
@@ -1164,7 +1396,12 @@
       "tn_avg": 0.7,
       "hasTrend": true,
       "compositeEligible": true,
-      "trendGeographyBasis": "harmonized_2020_tract"
+      "trendGeographyBasis": "harmonized_2020_tract",
+      "aggregation": {
+        "method": "universe_weighted",
+        "min_coverage": 0.8,
+        "reason": null
+      }
     },
     "walk": {
       "label": "Workers Walking to Work (%)",
@@ -1185,7 +1422,12 @@
       "tn_avg": 1.5,
       "hasTrend": true,
       "compositeEligible": true,
-      "trendGeographyBasis": "harmonized_2020_tract"
+      "trendGeographyBasis": "harmonized_2020_tract",
+      "aggregation": {
+        "method": "universe_weighted",
+        "min_coverage": 0.8,
+        "reason": null
+      }
     },
     "age_65p": {
       "label": "Population Age 65+ (%)",
@@ -1206,7 +1448,12 @@
       "tn_avg": 17.5,
       "hasTrend": true,
       "compositeEligible": true,
-      "trendGeographyBasis": "harmonized_2020_tract"
+      "trendGeographyBasis": "harmonized_2020_tract",
+      "aggregation": {
+        "method": "universe_weighted",
+        "min_coverage": 0.8,
+        "reason": null
+      }
     },
     "age_18_64": {
       "label": "Population Age 18-64 (%)",
@@ -1227,7 +1474,12 @@
       "tn_avg": 61.2,
       "hasTrend": true,
       "compositeEligible": true,
-      "trendGeographyBasis": "harmonized_2020_tract"
+      "trendGeographyBasis": "harmonized_2020_tract",
+      "aggregation": {
+        "method": "universe_weighted",
+        "min_coverage": 0.8,
+        "reason": null
+      }
     },
     "med_age": {
       "label": "Median Age",
@@ -1235,14 +1487,18 @@
       "unit": "years",
       "source": "ACS",
       "table": "S0101",
-      "universe": "Total population",
       "why_it_matters": "Population age structure at a glance; useful for cross-tract comparison.",
       "limitation": "Median compresses bimodal distributions (e.g., a tract with many students AND many retirees).",
       "us_avg": 38.9,
       "tn_avg": 39.2,
       "hasTrend": true,
       "compositeEligible": true,
-      "trendGeographyBasis": "harmonized_2020_tract"
+      "trendGeographyBasis": "harmonized_2020_tract",
+      "aggregation": {
+        "method": "not_aggregable",
+        "min_coverage": null,
+        "reason": "Median age; medians do not aggregate as weighted means of tract rates."
+      }
     },
     "single_p": {
       "label": "Single-Parent Families (%)",
@@ -1263,7 +1519,12 @@
       "tn_avg": 26.3,
       "hasTrend": true,
       "compositeEligible": true,
-      "trendGeographyBasis": "harmonized_2020_tract"
+      "trendGeographyBasis": "harmonized_2020_tract",
+      "aggregation": {
+        "method": "universe_weighted",
+        "min_coverage": 0.8,
+        "reason": null
+      }
     },
     "live_alon_65": {
       "label": "Age 65+ Living Alone (%)",
@@ -1272,11 +1533,11 @@
       "source": "ACS",
       "table": "S1101",
       "universe": {
-        "label": "Households by presence of persons 65 years and over",
+        "label": "Total households",
         "acs_vars": [
-          "B11007_001E"
+          "B11001_001E"
         ],
-        "formula": "B11007_001E"
+        "formula": "B11001_001E"
       },
       "why_it_matters": "Social-isolation signal for the elderly; a leading input to senior-service outreach planning.",
       "limitation": "Household composition alone does not measure social contact.",
@@ -1284,7 +1545,12 @@
       "tn_avg": 13.1,
       "hasTrend": true,
       "compositeEligible": true,
-      "trendGeographyBasis": "harmonized_2020_tract"
+      "trendGeographyBasis": "harmonized_2020_tract",
+      "aggregation": {
+        "method": "universe_weighted",
+        "min_coverage": 0.8,
+        "reason": null
+      }
     },
     "hh_size": {
       "label": "Average Household Size",
@@ -1306,7 +1572,12 @@
       "tn_avg": 2.47,
       "hasTrend": true,
       "compositeEligible": true,
-      "trendGeographyBasis": "harmonized_2020_tract"
+      "trendGeographyBasis": "harmonized_2020_tract",
+      "aggregation": {
+        "method": "universe_weighted",
+        "min_coverage": 0.8,
+        "reason": null
+      }
     },
     "married": {
       "label": "Married (%)",
@@ -1327,7 +1598,12 @@
       "tn_avg": 49.8,
       "hasTrend": true,
       "compositeEligible": true,
-      "trendGeographyBasis": "harmonized_2020_tract"
+      "trendGeographyBasis": "harmonized_2020_tract",
+      "aggregation": {
+        "method": "universe_weighted",
+        "min_coverage": 0.8,
+        "reason": null
+      }
     },
     "hisp": {
       "label": "Hispanic (%)",
@@ -1348,7 +1624,12 @@
       "tn_avg": 7.4,
       "hasTrend": true,
       "compositeEligible": false,
-      "trendGeographyBasis": "harmonized_2020_tract"
+      "trendGeographyBasis": "harmonized_2020_tract",
+      "aggregation": {
+        "method": "universe_weighted",
+        "min_coverage": 0.8,
+        "reason": null
+      }
     },
     "black": {
       "label": "Black / African American (%)",
@@ -1369,7 +1650,12 @@
       "tn_avg": 15.9,
       "hasTrend": true,
       "compositeEligible": false,
-      "trendGeographyBasis": "harmonized_2020_tract"
+      "trendGeographyBasis": "harmonized_2020_tract",
+      "aggregation": {
+        "method": "universe_weighted",
+        "min_coverage": 0.8,
+        "reason": null
+      }
     },
     "white": {
       "label": "White (%)",
@@ -1390,7 +1676,12 @@
       "tn_avg": 71.9,
       "hasTrend": true,
       "compositeEligible": false,
-      "trendGeographyBasis": "harmonized_2020_tract"
+      "trendGeographyBasis": "harmonized_2020_tract",
+      "aggregation": {
+        "method": "universe_weighted",
+        "min_coverage": 0.8,
+        "reason": null
+      }
     },
     "asian": {
       "label": "Asian (%)",
@@ -1411,7 +1702,12 @@
       "tn_avg": 2.1,
       "hasTrend": true,
       "compositeEligible": false,
-      "trendGeographyBasis": "harmonized_2020_tract"
+      "trendGeographyBasis": "harmonized_2020_tract",
+      "aggregation": {
+        "method": "universe_weighted",
+        "min_coverage": 0.8,
+        "reason": null
+      }
     },
     "foreign_born": {
       "label": "Foreign Born Population (%)",
@@ -1432,7 +1728,12 @@
       "tn_avg": 5.5,
       "hasTrend": true,
       "compositeEligible": false,
-      "trendGeographyBasis": "harmonized_2020_tract"
+      "trendGeographyBasis": "harmonized_2020_tract",
+      "aggregation": {
+        "method": "universe_weighted",
+        "min_coverage": 0.8,
+        "reason": null
+      }
     },
     "lang_span": {
       "label": "Spanish Speakers (Age 5+) (%)",
@@ -1455,7 +1756,12 @@
       "tn_avg": 4.7,
       "hasTrend": true,
       "compositeEligible": false,
-      "trendGeographyBasis": "harmonized_2020_tract"
+      "trendGeographyBasis": "harmonized_2020_tract",
+      "aggregation": {
+        "method": "universe_weighted",
+        "min_coverage": 0.8,
+        "reason": null
+      }
     }
   }
 }

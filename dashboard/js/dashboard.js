@@ -139,7 +139,7 @@
       return list;
     }
 
-    const LAYER_URL = 'https://services.arcgis.com/UnTXoPXBYERF0OH6/arcgis/rest/services/jhfrc_tracts_v7/FeatureServer/0';
+    const LAYER_URL = 'https://services.arcgis.com/UnTXoPXBYERF0OH6/arcgis/rest/services/jhfrc_tracts_v10/FeatureServer/0';
 
     const state = {
       features: [], counties: new Set(),
@@ -264,12 +264,14 @@
         for (const [id, meta] of Object.entries(d.indicators || {})) {
           const ind = INDICATORS_BY_ID[id];
           if (!ind) continue;
+          if (meta.label) ind.label = meta.label;
           if (meta.source) ind.source = meta.source;
           if (typeof meta.hasTrend === 'boolean') ind.hasTrend = meta.hasTrend;
           if (typeof meta.compositeEligible === 'boolean') ind.compositeEligible = meta.compositeEligible;
           if (meta.trendGeographyBasis) ind.trendGeographyBasis = meta.trendGeographyBasis;
           if (meta.trendCaveat) ind.trendCaveat = meta.trendCaveat;
           if (meta.universe) ind.universe = meta.universe;
+          if (meta.aggregation) ind.aggregation = meta.aggregation;
           if (meta.why_it_matters) ind.why_it_matters = meta.why_it_matters;
           if (meta.limitation) ind.limitation = meta.limitation;
           if (meta.table) ind.table = meta.table;
@@ -897,8 +899,17 @@
           }
         }
       }
-      // Path 2 — universe-weighted tract aggregation
-      if (has(univField) && has(valField)) {
+      // Path 2 — universe-weighted tract aggregation. Only for
+      // indicators explicitly marked aggregable: sum(rate * univ) /
+      // sum(univ) is not a defensible county value for medians or
+      // indices (Gini, median age/rent/home/income), so those return
+      // blank. Coverage must clear min_coverage (default 0.80) of
+      // the county's tracts having both a valid rate and a valid
+      // universe — below that, blank.
+      const agg = ind.aggregation;
+      if (agg && agg.method === 'universe_weighted'
+          && has(univField) && has(valField)) {
+        const minCov = (agg.min_coverage != null) ? agg.min_coverage : 0.80;
         let wv = 0, w = 0, n = 0;
         for (const t of tracts) {
           const r = t[valField];
@@ -908,7 +919,8 @@
           w  += u;
           n  += 1;
         }
-        if (n >= 1 && w > 0) {
+        const coverage = n / tracts.length;
+        if (n >= 1 && w > 0 && coverage >= minCov) {
           return { value: wv / w, basis: 'tract_aggregation' };
         }
       }
