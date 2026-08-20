@@ -1032,7 +1032,9 @@
     function renderInfoPopoverContent(ind) {
       if (!ind) return '<em>No indicator selected.</em>';
       const parts = [];
-      parts.push(`<h4>${ind.label}</h4>`);
+      const tier = reliabilityTier(ind, null);
+      const tierChip = tier ? ` <span class="reliability ${tier.key}" title="${tier.detail.replace(/"/g,'&quot;')}">${tier.label}</span>` : '';
+      parts.push(`<h4>${ind.label}${tierChip}</h4>`);
       if (ind.why_it_matters) {
         parts.push(`<div>${ind.why_it_matters}</div>`);
       }
@@ -2146,6 +2148,288 @@
       ranking:     renderRanking,
     };
     const dirty = new Set(Object.keys(RENDERERS));
+    // ─── Reliability tier (task #129 MVP) ─────────────────────────────
+    // Source-aware three-tier: "High reliability" / "Use with some
+    // caution" / "Use with caution". Not colored good/bad — text labels
+    // + neutral chip. PLACES estimates default to "some caution" because
+    // they are model-based small-area estimates, not survey values.
+    // ACS defaults to "high" until MOE/CV land on the layer (Phase E2);
+    // per-tract suppression flag (<indicator>_supp) forces "caution".
+    function reliabilityTier(ind, tract) {
+      if (!ind) return null;
+      const suppField = ind.id + '_supp';
+      const isSuppressed = tract && state.presentFields
+        && state.presentFields.has(suppField)
+        && !!tract[suppField];
+      if (isSuppressed) {
+        return { key: 'low', label: 'Use with caution',
+          detail: 'Tract-level estimate is suppressed for reliability (CV > 40%).' };
+      }
+      if (ind.source === 'PLACES') {
+        return { key: 'some', label: 'Use with some caution',
+          detail: 'PLACES estimates are model-based small-area predictions from BRFSS + demographic covariates, not direct survey measurements. Interpret alongside ACS survey values.' };
+      }
+      return { key: 'high', label: 'High reliability',
+        detail: 'Direct ACS 5-year survey estimate. Sampling MOE will land in a follow-on release (E2).' };
+    }
+    function reliabilityChipHtml(ind, tract) {
+      const t = reliabilityTier(ind, tract);
+      if (!t) return '';
+      return `<span class="reliability ${t.key}" title="${t.detail.replace(/"/g,'&quot;')}">${t.label}</span>`;
+    }
+
+    // ─── Data coverage badge (task #130) ──────────────────────────────
+    // Compact + ubiquitous chip in the header next to the tract count.
+    // Format: "176 of 176 tracts · ACS 2020–2024 · 98% usable".
+    // Click opens a popover with source / vintage / universe /
+    // suppression count / uncertainty type / geographic coverage.
+    function renderCoverageBadge() {
+      const badge = document.getElementById('coverageBadge');
+      if (!badge) return;
+      const ind = INDICATORS_BY_ID[state.indA];
+      const visible = state.features.filter(f => state.counties.has(f.county_name));
+      const nTotal = visible.length;
+      if (!ind || nTotal === 0) { badge.hidden = true; return; }
+      const suppField = ind.id + '_supp';
+      const hasSupp = state.presentFields && state.presentFields.has(suppField);
+      const nSupp = hasSupp ? visible.filter(t => !!t[suppField]).length : 0;
+      const nUsable = visible.filter(t => t[ind.id] != null && !isNaN(t[ind.id])).length;
+      const pctUsable = nTotal > 0 ? Math.round(100 * nUsable / nTotal) : 0;
+      const vintage = ind.source === 'PLACES' ? 'PLACES 2024' : 'ACS 2020–2024';
+      badge.hidden = false;
+      badge.textContent = `${nUsable} of ${nTotal} tracts · ${vintage} · ${pctUsable}% usable`;
+      // Popover body — regenerated each render so the details reflect
+      // the current indicator + county filter.
+      const pop = document.getElementById('coveragePopover');
+      if (!pop) return;
+      const uncType = ind.source === 'PLACES' ? '95% Confidence Interval (model-based)' : '90% Margin of Error (survey-based)';
+      const universeLabel = ind.universe
+        ? (typeof ind.universe === 'string' ? ind.universe : (ind.universe.label || ''))
+        : '';
+      const nCounties = state.counties.size;
+      pop.innerHTML = `
+        <h4>Data coverage — ${ind.label}</h4>
+        <dl>
+          <dt>Source</dt><dd>${vintage}${ind.table ? ` · Table ${ind.table}` : ind.measure_id ? ` · Measure ${ind.measure_id}` : ''}</dd>
+          ${universeLabel ? `<dt>Universe (denominator)</dt><dd>${universeLabel}</dd>` : ''}
+          <dt>Tracts</dt><dd>${nUsable} of ${nTotal} with a usable value (${pctUsable}%)</dd>
+          <dt>Suppressed for reliability</dt><dd>${nSupp} tract${nSupp === 1 ? '' : 's'} (CV &gt; 40%)</dd>
+          <dt>Uncertainty type</dt><dd>${uncType}</dd>
+          <dt>Geographic coverage</dt><dd>${nCounties} of 11 pilot counties</dd>
+          ${ind.aggregation ? `<dt>Compare Counties basis</dt><dd>${ind.aggregation.method === 'universe_weighted' && ind.aggregation.validation_status === 'validated' ? 'Published county estimate; universe-weighted aggregation (validated) as fallback.' : ind.aggregation.method === 'not_aggregable' ? 'Published county estimate only; no defensible aggregation.' : 'Published county estimate only; aggregation blocked until metric identity is validated.'}</dd>` : ''}
+        </dl>`;
+    }
+    (function wireCoverageBadge() {
+      const badge = document.getElementById('coverageBadge');
+      const pop = document.getElementById('coveragePopover');
+      if (!badge || !pop) return;
+      badge.addEventListener('click', () => {
+        const open = !pop.hidden;
+        pop.hidden = open;
+        badge.setAttribute('aria-expanded', String(!open));
+      });
+      document.addEventListener('click', e => {
+        if (e.target === badge || badge.contains(e.target) || pop.contains(e.target)) return;
+        pop.hidden = true;
+        badge.setAttribute('aria-expanded', 'false');
+      });
+      document.addEventListener('keydown', e => {
+        if (e.key === 'Escape') { pop.hidden = true; badge.setAttribute('aria-expanded', 'false'); }
+      });
+    })();
+
+    // ─── Indicator search (task #128) ─────────────────────────────────
+    // Text input above each Primary / Secondary indicator select. Filters
+    // <option>s in place based on label match, domain match, or synonym
+    // match (source=='PLACES' matches "cdc", "chronic disease", etc.).
+    // Preserves the currently-selected value even if it gets filtered
+    // out of view.
+    const INDICATOR_SYNONYMS = {
+      pov_below: ['poverty', 'below poverty line', 'poor'],
+      hh_snap: ['food stamps', 'snap', 'food', 'nutrition assistance'],
+      hh_pubasst: ['public assistance', 'tanf', 'welfare'],
+      mhi: ['median income', 'household income'],
+      mpci: ['per capita income', 'income per person'],
+      emp_adults: ['employment', 'employed', 'jobs'],
+      not_labor: ['not working', 'out of labor force', 'nilf'],
+      edu_ba: ['bachelors', 'college degree', 'higher education'],
+      edu_lths: ['less than high school', 'no high school', 'high school dropout'],
+      hh_diab: ['diabetes', 'chronic disease'],
+      no_insur: ['uninsured', 'no health insurance'],
+      hh_asthma: ['asthma', 'respiratory'],
+      obesity: ['obesity', 'overweight', 'bmi'],
+      smoke: ['smoking', 'tobacco'],
+      binge: ['binge drinking', 'alcohol'],
+      no_veh: ['no car', 'no vehicle', 'transportation'],
+      transit: ['public transit', 'bus', 'transportation'],
+      walk: ['walking to work', 'active transportation'],
+      bb_access: ['broadband', 'internet access', 'digital divide'],
+      no_intnet: ['no internet', 'digital divide'],
+      cost_rent: ['rent burden', 'rent burdened', 'housing cost'],
+      cost_owner: ['mortgage burden', 'housing cost'],
+      housing_old: ['old housing', 'pre-1980 housing', 'lead risk'],
+      lang_span: ['spanish', 'espanol', 'language'],
+      foreign_born: ['immigrant', 'foreign born', 'immigration'],
+      single_p: ['single parent', 'lone parent'],
+      live_alon_65: ['seniors alone', 'elderly alone'],
+    };
+    function wireIndicatorSearch(inputId, selectId) {
+      const input = document.getElementById(inputId);
+      const select = document.getElementById(selectId);
+      if (!input || !select) return;
+      input.addEventListener('input', () => {
+        const q = input.value.trim().toLowerCase();
+        for (const opt of select.options) {
+          if (!q) { opt.hidden = false; continue; }
+          const id = opt.value;
+          const label = (opt.textContent || '').toLowerCase();
+          const ind = INDICATORS_BY_ID[id];
+          const domain = (ind && ind.domain || '').toLowerCase();
+          const source = (ind && ind.source || '').toLowerCase();
+          const syns = (INDICATOR_SYNONYMS[id] || []).join(' ').toLowerCase();
+          const haystack = `${label} ${domain} ${source} ${syns}`;
+          opt.hidden = !haystack.includes(q);
+        }
+        // Also filter optgroup labels
+        for (const g of select.querySelectorAll('optgroup')) {
+          const anyVisible = Array.from(g.querySelectorAll('option')).some(o => !o.hidden);
+          g.hidden = !anyVisible;
+        }
+      });
+      input.addEventListener('keydown', e => {
+        if (e.key === 'Escape') { input.value = ''; input.dispatchEvent(new Event('input')); }
+      });
+    }
+    wireIndicatorSearch('indicatorSearchA', 'indicatorSelect');
+    wireIndicatorSearch('indicatorSearchB', 'indicatorSelectB');
+
+    // ─── Key Findings panel (task #131) ───────────────────────────────
+    // Deterministic templates per view. 3 findings maximum. Finding ->
+    // Detail structure per bullet. Suppress "changed" statements when
+    // the delta is within measurement uncertainty (we don't have MOE
+    // on the layer yet; for now, use a conservative floor: any change
+    // magnitude < 0.5pp or < 5% relative is treated as "changed within
+    // measurement uncertainty" and phrased accordingly).
+    function _sig(delta, magnitude) {
+      // magnitude ~ scale of the underlying value; delta ~ change
+      if (delta == null || isNaN(delta)) return false;
+      const absD = Math.abs(delta);
+      const absM = Math.abs(magnitude || 1);
+      return absD >= 0.5 && absD / absM >= 0.05;
+    }
+    function _keyFindingsHTML(findings) {
+      if (!findings || !findings.length) {
+        return '<h3>Key findings</h3><div class="kf-empty">Not enough data to summarize.</div>';
+      }
+      const items = findings.slice(0, 3).map(f => {
+        const detail = f.detail ? `<span class="kf-detail">${f.detail}</span>` : '';
+        return `<li><span class="kf-finding">${f.finding}</span>${detail}</li>`;
+      }).join('');
+      return `<h3>Key findings</h3><ol>${items}</ol>`;
+    }
+    function keyFindingsOverview() {
+      const ind = INDICATORS_BY_ID[state.indA];
+      const visible = state.features.filter(f =>
+        state.counties.has(f.county_name)
+        && f[ind.id] != null && !isNaN(f[ind.id])
+      );
+      if (!ind || visible.length < 3) return [];
+      const sorted = visible.slice().sort((a, b) => b[ind.id] - a[ind.id]);
+      const max = sorted[0], min = sorted[sorted.length - 1];
+      const findings = [];
+      // Finding 1: max/min tract span
+      findings.push({
+        finding: `${ind.label} ranges from ${fmt(min[ind.id], ind)} in tract ${min.tract_geoid} (${min.county_name}) to ${fmt(max[ind.id], ind)} in tract ${max.tract_geoid} (${max.county_name}).`,
+        detail: `Across ${visible.length} tracts in ${state.counties.size} selected counties.`,
+      });
+      // Finding 2: vs state benchmark if we have one
+      if (typeof ind.tn_avg === 'number') {
+        const worseCount = visible.filter(t => (ind.higherIsWorse === false)
+          ? t[ind.id] < ind.tn_avg
+          : t[ind.id] > ind.tn_avg
+        ).length;
+        const pct = Math.round(100 * worseCount / visible.length);
+        const direction = ind.higherIsWorse === false ? 'below' : 'above';
+        findings.push({
+          finding: `${worseCount} of ${visible.length} tracts (${pct}%) are ${direction} the Tennessee average of ${fmt(ind.tn_avg, ind)}.`,
+          detail: `State reference from ${ind.source === 'PLACES' ? 'CDC PLACES 2024' : 'ACS 2020–2024'}.`,
+        });
+      }
+      // Finding 3: county-level extreme (uses published or aggregated)
+      const byCounty = {};
+      for (const c of state.counties) {
+        byCounty[c] = state.features.filter(f => f.county_name === c);
+      }
+      const countyRows = [];
+      for (const c of Object.keys(byCounty)) {
+        const v = _countyValue(c, ind, byCounty[c]);
+        if (v && v.value != null) countyRows.push({ c, ...v });
+      }
+      if (countyRows.length >= 2) {
+        const cSorted = countyRows.slice().sort((a, b) => b.value - a.value);
+        const cMax = cSorted[0], cMin = cSorted[cSorted.length - 1];
+        findings.push({
+          finding: `Among selected counties, ${ind.label} is highest in ${cMax.c} (${fmt(cMax.value, ind)}) and lowest in ${cMin.c} (${fmt(cMin.value, ind)}).`,
+          detail: `Numbers are published county estimates where available; ${countyRows.filter(r => r.basis === 'tract_aggregation').length ? 'some are universe-weighted aggregations (‡).' : 'no aggregation used.'}`,
+        });
+      }
+      return findings;
+    }
+    function keyFindingsCompare() {
+      const ind = INDICATORS_BY_ID[state.indA];
+      if (!ind) return [];
+      const selected = [...selectedCounties()];
+      if (selected.length < 2) return [];
+      const byCounty = {};
+      for (const c of selected) byCounty[c] = state.features.filter(f => f.county_name === c);
+      const rows = selected.map(c => ({ c, ...(_countyValue(c, ind, byCounty[c]) || {}) })).filter(r => r.value != null);
+      if (rows.length < 2) {
+        return [{
+          finding: `${ind.label} has no comparable county estimates across the current selection.`,
+          detail: `${rows.length} of ${selected.length} selected counties have a published or validated aggregated value.`,
+        }];
+      }
+      const sorted = rows.slice().sort((a, b) => b.value - a.value);
+      const top = sorted[0], bot = sorted[sorted.length - 1];
+      const findings = [];
+      findings.push({
+        finding: `Among ${rows.length} selected counties with comparable ${ind.label}, ${top.c} is highest (${fmt(top.value, ind)}) and ${bot.c} is lowest (${fmt(bot.value, ind)}).`,
+        detail: `Range: ${fmt(top.value - bot.value, ind)}.`,
+      });
+      // Aggregation-basis note if any
+      const nAgg = rows.filter(r => r.basis === 'tract_aggregation').length;
+      if (nAgg) {
+        findings.push({
+          finding: `${nAgg} county value${nAgg === 1 ? '' : 's'} in this row are universe-weighted aggregations of tract estimates (‡), not direct published estimates.`,
+          detail: 'The published county estimate was unavailable for these counties; the aggregation is validated against the official ACS county value.',
+        });
+      }
+      // Coverage note
+      if (rows.length < selected.length) {
+        findings.push({
+          finding: `${selected.length - rows.length} of ${selected.length} selected counties have no available value for ${ind.label}.`,
+          detail: 'Either the published county estimate is missing and the indicator is not aggregation-eligible, or tract coverage falls below the 80% floor.',
+        });
+      }
+      return findings;
+    }
+    function renderKeyFindings(view) {
+      const el = document.getElementById('keyFindings');
+      if (!el) return;
+      let findings = [];
+      try {
+        if (view === 'overview')  findings = keyFindingsOverview();
+        else if (view === 'compare') findings = keyFindingsCompare();
+        else                         findings = [];  // trends/correlation/ranking: TBD
+      } catch (e) {
+        console.warn('Key findings render failed', e);
+        findings = [];
+      }
+      if (!findings.length) { el.hidden = true; return; }
+      el.hidden = false;
+      el.innerHTML = _keyFindingsHTML(findings);
+    }
+
     function activeView() {
       const active = document.querySelector('.tab.active');
       return active ? active.dataset.view : 'overview';
@@ -2153,6 +2437,8 @@
     function renderView(name) {
       if (RENDERERS[name]) RENDERERS[name]();
       dirty.delete(name);
+      renderKeyFindings(name);
+      renderCoverageBadge();
     }
     function updateAll() {
       // Rebuild dropdown options first so indicators that are empty for

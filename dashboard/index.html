@@ -48,7 +48,11 @@
           <button id="aboutToggle" type="button" class="link-btn" aria-controls="aboutPanel" aria-expanded="false">About this dashboard</button>
         </div>
       </div>
-      <div class="status" id="status" aria-live="polite" aria-atomic="true">Loading…</div>
+      <div class="status-wrap">
+        <button type="button" class="coverage-badge" id="coverageBadge" aria-haspopup="dialog" aria-expanded="false" title="Show data coverage details" hidden></button>
+        <div class="status" id="status" aria-live="polite" aria-atomic="true">Loading…</div>
+        <div id="coveragePopover" class="coverage-popover" hidden role="dialog" aria-label="Data coverage details"></div>
+      </div>
     </header>
     <!-- About panel (Brief 3 Amendments A6). Hidden by default,
          opened from the header subtitle link. -->
@@ -128,14 +132,16 @@
           <h3>Primary Indicator
             <button type="button" class="info-btn" id="infoBtnA" aria-label="About the primary indicator" title="What is this indicator?">i</button>
           </h3>
-          <select id="indicatorSelect"></select>
+          <input type="search" id="indicatorSearchA" class="indicator-search" placeholder="Search 61 indicators (e.g. food, poverty)" aria-label="Search primary indicator" autocomplete="off" />
+          <select id="indicatorSelect" size="1"></select>
           <div id="infoPopoverA" class="info-popover" hidden></div>
         </div>
         <div class="section">
           <h3>Secondary Indicator
             <button type="button" class="info-btn" id="infoBtnB" aria-label="About the secondary indicator" title="What is this indicator?">i</button>
           </h3>
-          <select id="indicatorSelectB"></select>
+          <input type="search" id="indicatorSearchB" class="indicator-search" placeholder="Search 61 indicators" aria-label="Search secondary indicator" autocomplete="off" />
+          <select id="indicatorSelectB" size="1"></select>
           <div id="infoPopoverB" class="info-popover" hidden></div>
           <div class="footnote" style="margin-top:6px;">Used for Correlation view.</div>
         </div>
@@ -189,6 +195,10 @@
       </aside>
 
       <div class="content-area">
+        <!-- Key Findings — 3 deterministic top-line sentences per view.
+             Populated by renderKeyFindings(view) whenever the tab
+             switches or filters change. Task #131. -->
+        <div id="keyFindings" class="key-findings" hidden aria-live="polite"></div>
         <!-- OVERVIEW -->
         <div class="view active" id="view-overview">
           <div class="overview-grid">
