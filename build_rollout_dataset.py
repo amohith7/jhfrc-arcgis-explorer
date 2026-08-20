@@ -323,6 +323,78 @@ def apply_harmonized_deltas(rows: list[dict], data_dir: Path) -> None:
     )
 
 
+def apply_authoritative_county_benchmarks(rows: list[dict], data_dir: Path) -> None:
+    """Override the XML-sourced county_avg with the direct-pull cache.
+
+    Task #124: the XML <CountyValue> is a tract-mean-derived value from
+    the vendor xlsx and is not the same statistic Census/PLACES
+    publish at county geography. For every row where the parquet cache
+    at data/county_benchmarks_tn.parquet has an authoritative direct
+    county estimate (published_county or derived_county_formula), we
+    overwrite county_avg with the parquet value. This makes downstream
+    <indicator>_county fields on the layer come from the direct pull,
+    not from an averaging of tract statistics.
+    """
+    parquet = data_dir / "county_benchmarks_tn.parquet"
+    dict_path = data_dir / "dictionary.json"
+    if not parquet.exists():
+        print(
+            f"\nNOTE: {parquet.name} not found. Skipping direct-county "
+            f"benchmark join. Run tools/build_county_benchmarks.py."
+        )
+        return
+    if pd is None:  # type: ignore[has-type]
+        print(f"\nNOTE: pandas unavailable; skipping direct-county join.")
+        return
+    if not dict_path.exists():
+        print(f"\nNOTE: {dict_path.name} not found; skipping direct-county join.")
+        return
+
+    import json as _json
+    import re as _re
+
+    d = _json.loads(dict_path.read_text())
+
+    def _norm_label(s):
+        return _re.sub(r"[^a-z0-9]+", "", (s or "").lower())
+
+    label_to_short: dict[str, str] = {}
+    for short, entry in d.get("indicators", {}).items():
+        label = entry.get("label")
+        if label:
+            label_to_short[_norm_label(label)] = short
+
+    print(f"\nJoining direct-county benchmarks from {parquet.name} ...")
+    cdf = pd.read_parquet(parquet)
+    lookup: dict[tuple[str, str], float] = {}
+    for r in cdf.itertuples(index=False):
+        v = getattr(r, "value", None)
+        if v is None or (isinstance(v, float) and np.isnan(v)):
+            continue
+        lookup[(str(r.county_fips).zfill(5), str(r.indicator_id))] = float(v)
+
+    n_replaced = n_unchanged = n_no_recipe = n_no_data = 0
+    for row in rows:
+        short = label_to_short.get(_norm_label(row["indicator_name"]))
+        if not short:
+            n_no_recipe += 1
+            continue
+        val = lookup.get((row["county_fips"], short))
+        if val is None:
+            n_no_data += 1
+            continue
+        old = row.get("county_avg")
+        row["county_avg"] = val
+        if old is None or (isinstance(old, float) and np.isnan(old)) or old != val:
+            n_replaced += 1
+        else:
+            n_unchanged += 1
+    print(
+        f"  replaced: {n_replaced:,} rows | unchanged: {n_unchanged:,} | "
+        f"no dict match: {n_no_recipe:,} | not in cache: {n_no_data:,}"
+    )
+
+
 def apply_universes(rows: list[dict], data_dir: Path) -> None:
     """Attach per-(tract, indicator) universe values to each row.
 
@@ -436,6 +508,14 @@ def main(argv: Iterable[str] | None = None) -> int:
     # values onto 2020 geometry via areal apportionment (or primary-
     # overlap for medians) and computes fresh deltas.
     apply_harmonized_deltas(all_rows, args.data_dir)
+
+    # Task #124: override tract-mean-derived county_avg from the XML
+    # with the direct-pull county estimates in
+    # data/county_benchmarks_tn.parquet (Census county API + PLACES
+    # county API for all 95 TN counties). Runs BEFORE apply_universes
+    # so validated fallback aggregation stays available for the small
+    # set of indicators the cache doesn't cover.
+    apply_authoritative_county_benchmarks(all_rows, args.data_dir)
 
     # Task #123: attach per-tract universe values so build_arcgis_layer
     # can emit <indicator>_univ fields and the dashboard can do

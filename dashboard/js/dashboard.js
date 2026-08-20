@@ -139,7 +139,7 @@
       return list;
     }
 
-    const LAYER_URL = 'https://services.arcgis.com/UnTXoPXBYERF0OH6/arcgis/rest/services/jhfrc_tracts_v12/FeatureServer/0';
+    const LAYER_URL = 'https://services.arcgis.com/UnTXoPXBYERF0OH6/arcgis/rest/services/jhfrc_tracts_v13/FeatureServer/0';
 
     const state = {
       features: [], counties: new Set(),
@@ -1079,14 +1079,14 @@
         const a = ind.aggregation;
         let msg = '';
         if (a.method === 'universe_weighted' && a.validation_status === 'validated') {
-          msg = 'Published county estimate where available; universe-weighted aggregation of tract estimates (validated against official ACS) elsewhere.';
+          msg = 'Direct county estimate (Census / PLACES county API) where available; universe-weighted aggregation of tract estimates (validated against official ACS) elsewhere.';
         } else if (a.method === 'universe_weighted' && a.validation_status === 'unresolved') {
-          msg = 'Published county estimate where available; blank elsewhere. Universe recipe is defensible but metric identity is not yet validated against an official ACS county estimate, so tract aggregation is disabled by governance.';
+          msg = 'Direct county estimate (Census / PLACES county API) where available; blank elsewhere. Universe recipe is defensible but metric identity is not yet validated against an official ACS county estimate, so tract aggregation is disabled by governance.';
         } else if (a.method === 'not_aggregable') {
           if (a.reason) {
-            msg = 'Published county estimate where available; blank elsewhere. ' + a.reason;
+            msg = 'Direct county estimate (Census / PLACES county API) where available; blank elsewhere. ' + a.reason;
           } else {
-            msg = 'Published county estimate where available; blank elsewhere (this indicator is not defensibly aggregated from tract estimates).';
+            msg = 'Direct county estimate (Census / PLACES county API) where available; blank elsewhere (this indicator is not defensibly aggregated from tract estimates).';
           }
         }
         if (msg) parts.push(`<dt>Compare Counties basis</dt><dd>${msg}</dd>`);
@@ -1825,7 +1825,7 @@
       // universe-weighted tract aggregation (task #123), or (3)
       // blank. Never an unweighted mean.
       header.innerHTML = '<th>Indicator</th>' +
-        selected.map(c => `<th class="num" title="Published county estimate where available, otherwise universe-weighted aggregation of tract estimates. Every cell is labeled with its provenance.">${c}<br><span style="font-weight:400; font-size:10px; color:#9ca3af;">county estimate</span></th>`).join('') +
+        selected.map(c => `<th class="num" title="Direct county estimate (Census / PLACES county API) where available, otherwise universe-weighted aggregation of tract estimates. Every cell is labeled with its provenance.">${c}<br><span style="font-weight:400; font-size:10px; color:#9ca3af;">county estimate</span></th>`).join('') +
         '<th class="num" title="County with the most-favorable value, given the indicator direction. Counties without an available value are excluded from the ranking.">Best</th>';
       tbody.innerHTML = '';
       if (selected.length === 0) {
@@ -2744,7 +2744,7 @@
         <table><thead><tr><th>Indicator</th><th>${countyName}</th><th>TN</th><th>US</th><th>Tract coverage</th></tr></thead>
           <tbody>${rowsHtml}</tbody></table>
         <div class="footer">
-          Numbers are the published county estimate from the Community Profiles source (ACS 2020&#8211;2024 or CDC PLACES 2024) where available; a <sup style="color:#a16207;">&#8225;</sup> marks universe-weighted tract aggregation (only permitted for indicators validated against official ACS county estimates). Blank means no published value and no defensible aggregation. Race, ethnicity, and language indicators are shown as descriptive context only and never enter a composite score. This is descriptive research; verify designations with the administering agency before making decisions.
+          Numbers are the <b>direct county estimate</b> pulled from the Census county API (ACS 2020&#8211;2024, exact published variable or its published numerator/denominator recomputed) or the CDC PLACES county API (2024, crude prevalence). Tract-level values are never averaged to produce a county number. A <sup style="color:#a16207;">&#8225;</sup> marks the few indicators where the direct county pull is unavailable and universe-weighted tract aggregation is used as a fallback (only permitted for indicators validated against official ACS county estimates). Blank means neither a direct county pull nor a defensible aggregation is available. Race, ethnicity, and language indicators are shown as descriptive context only and never enter a composite score. This is descriptive research; verify designations with the administering agency before making decisions.
         </div></body></html>`;
     }
 
