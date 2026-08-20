@@ -899,28 +899,39 @@
           }
         }
       }
-      // Path 2 — universe-weighted tract aggregation. Only for
-      // indicators explicitly marked aggregable: sum(rate * univ) /
-      // sum(univ) is not a defensible county value for medians or
-      // indices (Gini, median age/rent/home/income), so those return
-      // blank. Coverage must clear min_coverage (default 0.80) of
-      // the county's tracts having both a valid rate and a valid
-      // universe — below that, blank.
+      // Path 2 — universe-weighted tract aggregation. Governance
+      // rule (task #123, 2026-08-20): permitted ONLY when BOTH
+      //   agg.method            == 'universe_weighted'
+      //   agg.validation_status == 'validated'
+      // Having a defensible universe is not permission to aggregate;
+      // metric identity must have been confirmed against an official
+      // ACS county estimate via tools/validate_aggregation.py.
+      // Unresolved / not_applicable indicators return blank.
+      //
+      // Coverage is measured in UNIVERSE (population/households the
+      // indicator's denominator represents), NOT in raw tract count.
+      // A county whose 8 of 10 tracts are valid may still represent
+      // only 55% of the relevant population if the 2 missing tracts
+      // are the largest ones. Universe-weighted coverage catches
+      // that; tract-count coverage does not.
       const agg = ind.aggregation;
-      if (agg && agg.method === 'universe_weighted'
-          && has(univField) && has(valField)) {
+      const validated = agg && agg.method === 'universe_weighted'
+        && agg.validation_status === 'validated';
+      if (validated && has(univField) && has(valField)) {
         const minCov = (agg.min_coverage != null) ? agg.min_coverage : 0.80;
-        let wv = 0, w = 0, n = 0;
+        let wv = 0, w = 0, totalU = 0, n = 0;
         for (const t of tracts) {
-          const r = t[valField];
           const u = t[univField];
-          if (r == null || isNaN(r) || u == null || isNaN(u) || u <= 0) continue;
+          if (u == null || isNaN(u) || u <= 0) continue;
+          totalU += u;
+          const r = t[valField];
+          if (r == null || isNaN(r)) continue;
           wv += r * u;
           w  += u;
           n  += 1;
         }
-        const coverage = n / tracts.length;
-        if (n >= 1 && w > 0 && coverage >= minCov) {
+        const universeCoverage = totalU > 0 ? w / totalU : 0;
+        if (n >= 1 && w > 0 && universeCoverage >= minCov) {
           return { value: wv / w, basis: 'tract_aggregation' };
         }
       }
