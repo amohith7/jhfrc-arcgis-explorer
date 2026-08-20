@@ -137,6 +137,69 @@
     .reliability.high { background: var(--gray-100); color: var(--gray-800); border: 1px solid var(--gray-300); }
     .reliability.some { background: rgba(253,183,54,0.10); color: #92650b; border: 1px solid rgba(253,183,54,0.45); }
     .reliability.low  { background: rgba(220,38,38,0.06); color: #7a1414; border: 1px solid rgba(220,38,38,0.30); }
+
+    /* Tract click-through side panel (task #132) — overlays the map
+       on the right. Slides in when a tract is clicked. Focused card
+       for one tract + selected indicator, not the 61-field dump. */
+    .tract-panel {
+      position: absolute; top: 8px; right: 8px; bottom: 8px;
+      width: 340px; max-width: calc(100% - 16px);
+      background: white; color: var(--gray-800);
+      border: 1px solid var(--gray-300); border-radius: 6px;
+      box-shadow: 0 6px 20px rgba(0,0,0,0.15);
+      z-index: 20;
+      display: flex; flex-direction: column;
+      overflow: hidden;
+    }
+    .tract-panel[hidden] { display: none; }
+    .tract-panel-close {
+      position: absolute; top: 6px; right: 8px;
+      background: none; border: 0;
+      font-size: 22px; line-height: 1;
+      color: var(--gray-600); cursor: pointer; padding: 2px 6px;
+      z-index: 1;
+    }
+    .tract-panel-close:hover, .tract-panel-close:focus { color: var(--navy); outline: none; }
+    #tractPanelBody { padding: 14px 16px; overflow-y: auto; font-size: 12px; line-height: 1.45; }
+    #tractPanelBody h4 { margin: 0 0 4px; font-size: 13px; color: var(--navy); font-weight: 700; }
+    #tractPanelBody .tp-sub { color: var(--gray-600); font-size: 11px; margin-bottom: 12px; }
+    #tractPanelBody .tp-row {
+      display: grid; grid-template-columns: 1fr auto; gap: 8px;
+      padding: 4px 0; border-bottom: 1px dashed var(--gray-200);
+    }
+    #tractPanelBody .tp-row-lbl { color: var(--gray-600); font-size: 11px; }
+    #tractPanelBody .tp-row-val { font-weight: 600; text-align: right; font-family: "SF Mono", Consolas, monospace; }
+    #tractPanelBody .tp-section-title {
+      font-size: 10px; text-transform: uppercase; letter-spacing: 0.05em;
+      color: var(--gray-600); font-weight: 700;
+      margin: 14px 0 6px;
+    }
+    #tractPanelBody .tp-related li { margin: 3px 0; font-size: 11px; color: var(--gray-800); }
+    #tractPanelBody .tp-change-up   { color: var(--red); font-weight: 700; }
+    #tractPanelBody .tp-change-down { color: var(--green); font-weight: 700; }
+    #tractPanelBody .tp-change-flat { color: var(--gray-600); font-weight: 600; }
+
+    /* Compare Counties benchmark shading (task #134) — neutral
+       diverging around the state benchmark, NOT green/red good/bad.
+       Cell background reflects position vs state_avg where the
+       indicator has one. */
+    .compare-table td.bench-above  { background: rgba(30,68,114,0.05); }
+    .compare-table td.bench-below  { background: rgba(148,163,184,0.08); }
+    .compare-table tr.summary-row td {
+      background: var(--gray-100); font-weight: 700;
+      border-top: 2px solid var(--gray-300);
+      color: var(--navy);
+    }
+    /* Sparkline SVG next to change indicator */
+    .cmp-spark { display:inline-block; vertical-align:middle; margin-left:4px; }
+    /* County summary export button (task #133) */
+    .csv-btn.export-btn { background: var(--gold); color: var(--navy); }
+    .csv-btn.export-btn:hover { background: #ffcc66; }
+    /* Print styles for the county summary export window */
+    @media print {
+      body { margin: 0; }
+      .no-print { display: none !important; }
+    }
     /* Inline "link-style" button used in the subtitle for the About
        trigger and elsewhere. Keeps semantics as <button> for
        keyboard/screen-reader users while reading as a link. */
