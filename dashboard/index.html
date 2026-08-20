@@ -56,54 +56,29 @@
       <div class="about-inner">
         <button class="about-close" id="aboutClose" type="button" aria-label="Close about panel">×</button>
         <h2>About this dashboard</h2>
-        <p><b>Purpose.</b> Descriptive research from the
-          <b>Journey Health Foundation Research Center</b> at the
-          University of Tennessee at Chattanooga. It helps funders,
-          agencies, health systems, and community organizations see
-          where conditions in our region are hardest and how many
-          people are affected.</p>
-        <p><b>What it is not.</b> It does not recommend investments,
-          evaluate specific programs, or make eligibility
-          determinations. Every designation and every score shown here
-          should be verified with the administering agency before it
-          drives a decision.</p>
-        <p><b>Scope.</b> 11 counties across the Tennessee pilot
-          region (176 census tracts). 61 indicators drawn from the
-          American Community Survey (ACS) 5-year 2020&#8211;2024 and
-          CDC PLACES 2024. Data source and vintage are shown on every
-          indicator via the info-icon.</p>
-        <p><b>Where numbers come from.</b> The Overview map, KPI tiles,
-          and Tract Ranking read tract-level values directly from the
-          source. On <b>Compare Counties</b>, each county number is
-          the <b>published county estimate</b> from the source
-          (ACS/PLACES) where available; where a published county value
-          is not published, we fall back to <b>universe-weighted
-          aggregation</b> of tract estimates using each indicator's
-          measure-specific denominator (population 18+, households,
-          housing units, etc., marked with
-          <span style="color:#a16207; font-weight:600;">&#8225;</span>).
-          We never fall back to an unweighted mean, which would
-          misrepresent counties whose tracts differ substantially in
-          population.</p>
-        <p><b>How things changed.</b> The 5-year change compares the
-          ACS 5-year 2015&#8211;2019 release to 2020&#8211;2024, with
-          the older 2010-vintage tract values re-projected onto the
-          current 2020 tract geometry via areal apportionment (or
-          primary-overlap for medians). This is not the same as a
-          straight-through join by GEOID string, which would silently
-          miscompare tracts whose boundaries shifted between the
-          decennial cycles. PLACES trends carry an inline caveat
-          because CDC re-fits the small-area model each release.</p>
-        <p><b>Caveats.</b> Rates alone can mislead in low-population
-          tracts &#8211; read the tract count and suppression notes on
-          the KPI panel. Rankings are point estimates; ACS margins of
-          error and PLACES confidence intervals are stored in the
-          layer schema and will surface in the UI in a follow-on
-          release. Race, ethnicity, and language indicators are shown
-          as descriptive context only and never enter a composite
-          score or ranking.</p>
-        <p><b>Contact.</b> Journey Health Foundation Research Center,
-          University of Tennessee at Chattanooga.
+        <p><b>What it is.</b> Descriptive research from
+          <b>JHFRC</b> (Journey Health Foundation Research Center,
+          UT Chattanooga) on where community conditions are hardest
+          across the 11-county Tennessee pilot region (176 census
+          tracts, 61 indicators from ACS 2020&#8211;2024 and CDC
+          PLACES 2024).</p>
+        <p><b>How to read it.</b> Overview, KPIs, and Tract Ranking
+          show tract-level values from the source. Compare Counties
+          shows the published county estimate where available; a
+          small
+          <span style="color:#a16207; font-weight:600;">&#8225;</span>
+          marks universe-weighted tract aggregations (only permitted
+          for indicators validated against official ACS). Blank means
+          neither is available. 5-year change re-projects the
+          2015&#8211;19 baseline onto 2020 tract geometry so tracts
+          whose boundaries shifted are not silently miscompared.</p>
+        <p><b>What it isn't.</b> Not investment, lending, or
+          eligibility advice. Verify every designation with the
+          administering agency. Race, ethnicity, and language
+          indicators are context only and never enter a composite
+          score. Rates can mislead in small tracts &#8212; check
+          the tract count and suppression notes on the KPI panel.</p>
+        <p><b>Contact.</b>
           <a href="mailto:mohith-addepalli@utc.edu">mohith-addepalli@utc.edu</a></p>
       </div>
     </div>
@@ -251,14 +226,20 @@
                 are the <b>published county estimate</b> from the
                 Community Profiles source (ACS 2020&#8211;2024 or CDC
                 PLACES 2024) where available; where a published county
-                value is not available we fall back to
-                <b>universe-weighted aggregation</b> of tract estimates
-                using each indicator's measure-specific denominator
-                (marked with <span style="color:#a16207; font-weight:600;">&#8225;</span>).
-                We do not use unweighted means, which would
-                misrepresent counties whose tracts differ substantially
-                in population. Blank cells mean neither a published
-                value nor a defensible aggregation is available.
+                value is not available AND we have validated the
+                metric identity against an official ACS county
+                estimate, we compute
+                <b>universe-weighted aggregation</b> of tract
+                estimates using each indicator's measure-specific
+                denominator, requiring at least 80% of the county's
+                relevant population to be represented (marked with
+                <span style="color:#a16207; font-weight:600;">&#8225;</span>).
+                We do not use unweighted means, and we do not
+                aggregate for indicators whose metric identity has not
+                been validated &#8212; a defensible universe is not
+                permission to aggregate. Blank cells mean neither a
+                published value nor a validated aggregation is
+                available.
               </div>
               <div class="compare-scroll">
                 <table class="compare-table" id="compareTable">

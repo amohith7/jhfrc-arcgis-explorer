@@ -899,28 +899,39 @@
           }
         }
       }
-      // Path 2 — universe-weighted tract aggregation. Only for
-      // indicators explicitly marked aggregable: sum(rate * univ) /
-      // sum(univ) is not a defensible county value for medians or
-      // indices (Gini, median age/rent/home/income), so those return
-      // blank. Coverage must clear min_coverage (default 0.80) of
-      // the county's tracts having both a valid rate and a valid
-      // universe — below that, blank.
+      // Path 2 — universe-weighted tract aggregation. Governance
+      // rule (task #123, 2026-08-20): permitted ONLY when BOTH
+      //   agg.method            == 'universe_weighted'
+      //   agg.validation_status == 'validated'
+      // Having a defensible universe is not permission to aggregate;
+      // metric identity must have been confirmed against an official
+      // ACS county estimate via tools/validate_aggregation.py.
+      // Unresolved / not_applicable indicators return blank.
+      //
+      // Coverage is measured in UNIVERSE (population/households the
+      // indicator's denominator represents), NOT in raw tract count.
+      // A county whose 8 of 10 tracts are valid may still represent
+      // only 55% of the relevant population if the 2 missing tracts
+      // are the largest ones. Universe-weighted coverage catches
+      // that; tract-count coverage does not.
       const agg = ind.aggregation;
-      if (agg && agg.method === 'universe_weighted'
-          && has(univField) && has(valField)) {
+      const validated = agg && agg.method === 'universe_weighted'
+        && agg.validation_status === 'validated';
+      if (validated && has(univField) && has(valField)) {
         const minCov = (agg.min_coverage != null) ? agg.min_coverage : 0.80;
-        let wv = 0, w = 0, n = 0;
+        let wv = 0, w = 0, totalU = 0, n = 0;
         for (const t of tracts) {
-          const r = t[valField];
           const u = t[univField];
-          if (r == null || isNaN(r) || u == null || isNaN(u) || u <= 0) continue;
+          if (u == null || isNaN(u) || u <= 0) continue;
+          totalU += u;
+          const r = t[valField];
+          if (r == null || isNaN(r)) continue;
           wv += r * u;
           w  += u;
           n  += 1;
         }
-        const coverage = n / tracts.length;
-        if (n >= 1 && w > 0 && coverage >= minCov) {
+        const universeCoverage = totalU > 0 ? w / totalU : 0;
+        if (n >= 1 && w > 0 && universeCoverage >= minCov) {
           return { value: wv / w, basis: 'tract_aggregation' };
         }
       }
@@ -1046,12 +1057,38 @@
             : ind.source;
         parts.push(`<dt>Source</dt><dd>${expanded}${ind.table ? ` · Table ${ind.table}` : ind.measure_id ? ` · Measure ${ind.measure_id}` : ''}</dd>`);
       }
-      if (ind.universe) parts.push(`<dt>Universe</dt><dd>${ind.universe}</dd>`);
+      // Universe is either a legacy string ("Households") or, after
+      // task #123, a dict { label, acs_vars, formula }. Render whichever.
+      if (ind.universe) {
+        const uLabel = typeof ind.universe === 'string'
+          ? ind.universe
+          : (ind.universe.label || '');
+        if (uLabel) parts.push(`<dt>Universe</dt><dd>${uLabel}</dd>`);
+      }
       if (ind.limitation) parts.push(`<dt>Limitation</dt><dd>${ind.limitation}</dd>`);
       const ref = [];
       if (typeof ind.us_avg === 'number') ref.push(`US ${fmt(ind.us_avg, ind)}`);
       if (typeof ind.tn_avg === 'number') ref.push(`TN ${fmt(ind.tn_avg, ind)}`);
       if (ref.length) parts.push(`<dt>Reference values</dt><dd>${ref.join(' &middot; ')}</dd>`);
+      // County-value provenance (task #123 governance). Tells the
+      // user why Compare Counties may show a value, a ‡ aggregation,
+      // or a blank for this specific indicator.
+      if (ind.aggregation) {
+        const a = ind.aggregation;
+        let msg = '';
+        if (a.method === 'universe_weighted' && a.validation_status === 'validated') {
+          msg = 'Published county estimate where available; universe-weighted aggregation of tract estimates (validated against official ACS) elsewhere.';
+        } else if (a.method === 'universe_weighted' && a.validation_status === 'unresolved') {
+          msg = 'Published county estimate where available; blank elsewhere. Universe recipe is defensible but metric identity is not yet validated against an official ACS county estimate, so tract aggregation is disabled by governance.';
+        } else if (a.method === 'not_aggregable') {
+          if (a.reason) {
+            msg = 'Published county estimate where available; blank elsewhere. ' + a.reason;
+          } else {
+            msg = 'Published county estimate where available; blank elsewhere (this indicator is not defensibly aggregated from tract estimates).';
+          }
+        }
+        if (msg) parts.push(`<dt>Compare Counties basis</dt><dd>${msg}</dd>`);
+      }
       if (ind.hasTrend === false) {
         parts.push(`<dt>Trend</dt><dd>Change over time not shown (${ind.source === 'PLACES' ? 'CDC PLACES estimates are not comparable across releases' : 'delta not published for this indicator'}).</dd>`);
       } else if (ind.trendCaveat === 'places_model_refit') {

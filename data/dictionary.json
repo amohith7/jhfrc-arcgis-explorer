@@ -210,7 +210,8 @@
       }
     },
     "universe_recipe_note": "Per-indicator universe fields (<indicator>.universe) name the ACS variable or formula that defines the denominator that indicator's rate is calculated against. Used for universe-weighted tract aggregation when a published county estimate is unavailable (task #123). PLACES adult measures use ADULT_POP_18P per CDC methodology.",
-    "aggregation_note": "Per-indicator .aggregation controls whether Compare Counties may compute a universe-weighted tract aggregation when the published <CountyValue> is missing. method=universe_weighted means sum(rate x universe) / sum(universe) is defensible; method=not_aggregable means the cell stays blank (typically medians, indices, or indicators without a proper universe recipe). min_coverage is the minimum fraction of a county's tracts that must have both a valid rate and a valid universe for the aggregation to be shown; below that, blank."
+    "aggregation_note": "Per-indicator .aggregation controls whether Compare Counties may compute a universe-weighted tract aggregation when the published <CountyValue> is missing. method=universe_weighted means sum(rate x universe) / sum(universe) is defensible; method=not_aggregable means the cell stays blank (typically medians, indices, or indicators without a proper universe recipe). min_coverage is the minimum fraction of a county's tracts that must have both a valid rate and a valid universe for the aggregation to be shown; below that, blank.",
+    "aggregation_governance": "Compare Counties tract aggregation is only permitted when BOTH aggregation.method == 'universe_weighted' AND aggregation.validation_status == 'validated'. Indicators whose universe recipe is defensible but whose metric identity has not yet been confirmed against an official ACS county estimate stay 'unresolved' and render blank in Compare Counties. Promote to 'validated' only after tools/validate_aggregation.py confirms a match within tolerance. Rule: having a defensible universe is not permission to aggregate."
   },
   "indicators": {
     "pov_below": {
@@ -219,13 +220,6 @@
       "unit": "percent",
       "source": "ACS",
       "table": "S1701 / B17020",
-      "universe": {
-        "label": "Population for whom poverty status is determined",
-        "acs_vars": [
-          "B17001_001E"
-        ],
-        "formula": "B17001_001E"
-      },
       "why_it_matters": "The most common proxy for economic distress in community investment; a foundational input to CRA, CDFI, NMTC and grant scoring.",
       "limitation": "The federal poverty line is a coarse threshold and does not adjust for local cost of living; underestimates hardship in high-cost metros.",
       "us_avg": 12.4,
@@ -234,9 +228,10 @@
       "compositeEligible": true,
       "trendGeographyBasis": "harmonized_2020_tract",
       "aggregation": {
-        "method": "universe_weighted",
-        "min_coverage": 0.8,
-        "reason": null
+        "method": "not_aggregable",
+        "min_coverage": null,
+        "reason": "Systematic +4-6 pp divergence from official ACS county estimate in every county. Source statistic under verification (S1701 individual poverty vs family poverty vs another construct). Task #123 governance.",
+        "validation_status": "not_applicable"
       }
     },
     "hh_snap": {
@@ -262,7 +257,8 @@
       "aggregation": {
         "method": "universe_weighted",
         "min_coverage": 0.8,
-        "reason": null
+        "reason": null,
+        "validation_status": "validated"
       }
     },
     "hh_pubasst": {
@@ -271,13 +267,6 @@
       "unit": "percent",
       "source": "ACS",
       "table": "B19057",
-      "universe": {
-        "label": "Total households",
-        "acs_vars": [
-          "B11001_001E"
-        ],
-        "formula": "B11001_001E"
-      },
       "why_it_matters": "TANF and equivalent cash-assistance reliance; a signal of the population most exposed to policy shifts.",
       "limitation": "Small absolute counts in most tracts; high MOE relative to point estimate.",
       "us_avg": 2.6,
@@ -286,9 +275,10 @@
       "compositeEligible": true,
       "trendGeographyBasis": "harmonized_2020_tract",
       "aggregation": {
-        "method": "universe_weighted",
-        "min_coverage": 0.8,
-        "reason": null
+        "method": "not_aggregable",
+        "min_coverage": null,
+        "reason": "Hamilton derived 1.49 matches official 1.50; all other counties 10-20x too high (values look SNAP-like). Upstream source vs join-logic investigation pending (task #127). Task #123 governance.",
+        "validation_status": "not_applicable"
       }
     },
     "emp_adults": {
@@ -314,7 +304,8 @@
       "aggregation": {
         "method": "universe_weighted",
         "min_coverage": 0.8,
-        "reason": null
+        "reason": null,
+        "validation_status": "unresolved"
       }
     },
     "not_labor": {
@@ -340,7 +331,8 @@
       "aggregation": {
         "method": "universe_weighted",
         "min_coverage": 0.8,
-        "reason": null
+        "reason": null,
+        "validation_status": "validated"
       }
     },
     "mhi": {
@@ -359,7 +351,8 @@
       "aggregation": {
         "method": "not_aggregable",
         "min_coverage": null,
-        "reason": "Median household income; medians do not aggregate as weighted means of tract rates."
+        "reason": "Median household income; medians do not aggregate as weighted means of tract rates.",
+        "validation_status": "not_applicable"
       }
     },
     "mpci": {
@@ -385,7 +378,8 @@
       "aggregation": {
         "method": "universe_weighted",
         "min_coverage": 0.8,
-        "reason": null
+        "reason": null,
+        "validation_status": "validated"
       }
     },
     "gini": {
@@ -404,7 +398,8 @@
       "aggregation": {
         "method": "not_aggregable",
         "min_coverage": null,
-        "reason": "Gini index measures within-unit inequality; the county Gini is not a weighted mean of tract Ginis."
+        "reason": "Gini index measures within-unit inequality; the county Gini is not a weighted mean of tract Ginis.",
+        "validation_status": "not_applicable"
       }
     },
     "edu_lths": {
@@ -430,7 +425,8 @@
       "aggregation": {
         "method": "universe_weighted",
         "min_coverage": 0.8,
-        "reason": null
+        "reason": null,
+        "validation_status": "unresolved"
       }
     },
     "edu_posths": {
@@ -456,7 +452,8 @@
       "aggregation": {
         "method": "universe_weighted",
         "min_coverage": 0.8,
-        "reason": null
+        "reason": null,
+        "validation_status": "unresolved"
       }
     },
     "edu_assoc": {
@@ -482,7 +479,8 @@
       "aggregation": {
         "method": "universe_weighted",
         "min_coverage": 0.8,
-        "reason": null
+        "reason": null,
+        "validation_status": "unresolved"
       }
     },
     "edu_ba": {
@@ -508,7 +506,8 @@
       "aggregation": {
         "method": "universe_weighted",
         "min_coverage": 0.8,
-        "reason": null
+        "reason": null,
+        "validation_status": "unresolved"
       }
     },
     "edu_grad": {
@@ -534,7 +533,8 @@
       "aggregation": {
         "method": "universe_weighted",
         "min_coverage": 0.8,
-        "reason": null
+        "reason": null,
+        "validation_status": "unresolved"
       }
     },
     "youth_dis": {
@@ -560,7 +560,8 @@
       "aggregation": {
         "method": "universe_weighted",
         "min_coverage": 0.8,
-        "reason": null
+        "reason": null,
+        "validation_status": "unresolved"
       }
     },
     "any_disab": {
@@ -586,7 +587,8 @@
       "aggregation": {
         "method": "universe_weighted",
         "min_coverage": 0.8,
-        "reason": null
+        "reason": null,
+        "validation_status": "unresolved"
       }
     },
     "no_insur": {
@@ -605,7 +607,8 @@
       "aggregation": {
         "method": "not_aggregable",
         "min_coverage": null,
-        "reason": "Universe requires age 18-64 (or 19-64 per current ACS) civilian noninstitutionalized population; B27001 cannot cleanly express this age band (age 18 is grouped with 6-18). Verify source statistic (S2701 age band) before enabling tract aggregation. Published county_avg remains usable where present."
+        "reason": "Universe requires age 18-64 (or 19-64 per current ACS) civilian noninstitutionalized population; B27001 cannot cleanly express this age band (age 18 is grouped with 6-18). Verify source statistic (S2701 age band) before enabling tract aggregation. Published county_avg remains usable where present.",
+        "validation_status": "not_applicable"
       }
     },
     "private_ins": {
@@ -631,7 +634,8 @@
       "aggregation": {
         "method": "universe_weighted",
         "min_coverage": 0.8,
-        "reason": null
+        "reason": null,
+        "validation_status": "unresolved"
       }
     },
     "medicaid": {
@@ -657,7 +661,8 @@
       "aggregation": {
         "method": "universe_weighted",
         "min_coverage": 0.8,
-        "reason": null
+        "reason": null,
+        "validation_status": "unresolved"
       }
     },
     "hh_diab": {
@@ -678,7 +683,8 @@
       "aggregation": {
         "method": "not_aggregable",
         "min_coverage": null,
-        "reason": "No defensible universe recipe defined; blank when published county value unavailable."
+        "reason": "No defensible universe recipe defined; blank when published county value unavailable.",
+        "validation_status": "not_applicable"
       }
     },
     "hh_asthma": {
@@ -699,7 +705,8 @@
       "aggregation": {
         "method": "not_aggregable",
         "min_coverage": null,
-        "reason": "No defensible universe recipe defined; blank when published county value unavailable."
+        "reason": "No defensible universe recipe defined; blank when published county value unavailable.",
+        "validation_status": "not_applicable"
       }
     },
     "hh_heart": {
@@ -720,7 +727,8 @@
       "aggregation": {
         "method": "not_aggregable",
         "min_coverage": null,
-        "reason": "No defensible universe recipe defined; blank when published county value unavailable."
+        "reason": "No defensible universe recipe defined; blank when published county value unavailable.",
+        "validation_status": "not_applicable"
       }
     },
     "hh_bp": {
@@ -741,7 +749,8 @@
       "aggregation": {
         "method": "not_aggregable",
         "min_coverage": null,
-        "reason": "No defensible universe recipe defined; blank when published county value unavailable."
+        "reason": "No defensible universe recipe defined; blank when published county value unavailable.",
+        "validation_status": "not_applicable"
       }
     },
     "hh_bpmed": {
@@ -805,7 +814,8 @@
       "aggregation": {
         "method": "universe_weighted",
         "min_coverage": 0.8,
-        "reason": null
+        "reason": null,
+        "validation_status": "unresolved"
       }
     },
     "hh_chol": {
@@ -826,7 +836,8 @@
       "aggregation": {
         "method": "not_aggregable",
         "min_coverage": null,
-        "reason": "No defensible universe recipe defined; blank when published county value unavailable."
+        "reason": "No defensible universe recipe defined; blank when published county value unavailable.",
+        "validation_status": "not_applicable"
       }
     },
     "hh_arthr": {
@@ -847,7 +858,8 @@
       "aggregation": {
         "method": "not_aggregable",
         "min_coverage": null,
-        "reason": "No defensible universe recipe defined; blank when published county value unavailable."
+        "reason": "No defensible universe recipe defined; blank when published county value unavailable.",
+        "validation_status": "not_applicable"
       }
     },
     "hh_copd": {
@@ -868,7 +880,8 @@
       "aggregation": {
         "method": "not_aggregable",
         "min_coverage": null,
-        "reason": "No defensible universe recipe defined; blank when published county value unavailable."
+        "reason": "No defensible universe recipe defined; blank when published county value unavailable.",
+        "validation_status": "not_applicable"
       }
     },
     "hh_stroke": {
@@ -889,7 +902,8 @@
       "aggregation": {
         "method": "not_aggregable",
         "min_coverage": null,
-        "reason": "No defensible universe recipe defined; blank when published county value unavailable."
+        "reason": "No defensible universe recipe defined; blank when published county value unavailable.",
+        "validation_status": "not_applicable"
       }
     },
     "ph_poor14": {
@@ -910,7 +924,8 @@
       "aggregation": {
         "method": "not_aggregable",
         "min_coverage": null,
-        "reason": "No defensible universe recipe defined; blank when published county value unavailable."
+        "reason": "No defensible universe recipe defined; blank when published county value unavailable.",
+        "validation_status": "not_applicable"
       }
     },
     "mh_poor14": {
@@ -931,7 +946,8 @@
       "aggregation": {
         "method": "not_aggregable",
         "min_coverage": null,
-        "reason": "No defensible universe recipe defined; blank when published county value unavailable."
+        "reason": "No defensible universe recipe defined; blank when published county value unavailable.",
+        "validation_status": "not_applicable"
       }
     },
     "fair_hlth": {
@@ -952,7 +968,8 @@
       "aggregation": {
         "method": "not_aggregable",
         "min_coverage": null,
-        "reason": "No defensible universe recipe defined; blank when published county value unavailable."
+        "reason": "No defensible universe recipe defined; blank when published county value unavailable.",
+        "validation_status": "not_applicable"
       }
     },
     "smoke": {
@@ -973,7 +990,8 @@
       "aggregation": {
         "method": "not_aggregable",
         "min_coverage": null,
-        "reason": "No defensible universe recipe defined; blank when published county value unavailable."
+        "reason": "No defensible universe recipe defined; blank when published county value unavailable.",
+        "validation_status": "not_applicable"
       }
     },
     "binge": {
@@ -994,7 +1012,8 @@
       "aggregation": {
         "method": "not_aggregable",
         "min_coverage": null,
-        "reason": "No defensible universe recipe defined; blank when published county value unavailable."
+        "reason": "No defensible universe recipe defined; blank when published county value unavailable.",
+        "validation_status": "not_applicable"
       }
     },
     "no_activ": {
@@ -1058,7 +1077,8 @@
       "aggregation": {
         "method": "universe_weighted",
         "min_coverage": 0.8,
-        "reason": null
+        "reason": null,
+        "validation_status": "unresolved"
       }
     },
     "obesity": {
@@ -1079,7 +1099,8 @@
       "aggregation": {
         "method": "not_aggregable",
         "min_coverage": null,
-        "reason": "No defensible universe recipe defined; blank when published county value unavailable."
+        "reason": "No defensible universe recipe defined; blank when published county value unavailable.",
+        "validation_status": "not_applicable"
       }
     },
     "sleep_lt7": {
@@ -1100,7 +1121,8 @@
       "aggregation": {
         "method": "not_aggregable",
         "min_coverage": null,
-        "reason": "No defensible universe recipe defined; blank when published county value unavailable."
+        "reason": "No defensible universe recipe defined; blank when published county value unavailable.",
+        "validation_status": "not_applicable"
       }
     },
     "med_rent": {
@@ -1119,7 +1141,8 @@
       "aggregation": {
         "method": "not_aggregable",
         "min_coverage": null,
-        "reason": "Median gross rent; medians do not aggregate as weighted means of tract rates."
+        "reason": "Median gross rent; medians do not aggregate as weighted means of tract rates.",
+        "validation_status": "not_applicable"
       }
     },
     "med_home": {
@@ -1138,7 +1161,8 @@
       "aggregation": {
         "method": "not_aggregable",
         "min_coverage": null,
-        "reason": "Median home value; medians do not aggregate as weighted means of tract rates."
+        "reason": "Median home value; medians do not aggregate as weighted means of tract rates.",
+        "validation_status": "not_applicable"
       }
     },
     "owner_occ": {
@@ -1164,7 +1188,8 @@
       "aggregation": {
         "method": "universe_weighted",
         "min_coverage": 0.8,
-        "reason": null
+        "reason": null,
+        "validation_status": "unresolved"
       }
     },
     "renter_occ": {
@@ -1190,7 +1215,8 @@
       "aggregation": {
         "method": "universe_weighted",
         "min_coverage": 0.8,
-        "reason": null
+        "reason": null,
+        "validation_status": "unresolved"
       }
     },
     "vacant": {
@@ -1216,7 +1242,8 @@
       "aggregation": {
         "method": "universe_weighted",
         "min_coverage": 0.8,
-        "reason": null
+        "reason": null,
+        "validation_status": "validated"
       }
     },
     "cost_owner": {
@@ -1243,7 +1270,8 @@
       "aggregation": {
         "method": "universe_weighted",
         "min_coverage": 0.8,
-        "reason": null
+        "reason": null,
+        "validation_status": "unresolved"
       }
     },
     "cost_rent": {
@@ -1270,7 +1298,8 @@
       "aggregation": {
         "method": "universe_weighted",
         "min_coverage": 0.8,
-        "reason": null
+        "reason": null,
+        "validation_status": "unresolved"
       }
     },
     "housing_old": {
@@ -1296,7 +1325,8 @@
       "aggregation": {
         "method": "universe_weighted",
         "min_coverage": 0.8,
-        "reason": null
+        "reason": null,
+        "validation_status": "unresolved"
       }
     },
     "bb_access": {
@@ -1322,7 +1352,8 @@
       "aggregation": {
         "method": "universe_weighted",
         "min_coverage": 0.8,
-        "reason": null
+        "reason": null,
+        "validation_status": "validated"
       }
     },
     "no_intnet": {
@@ -1348,7 +1379,8 @@
       "aggregation": {
         "method": "universe_weighted",
         "min_coverage": 0.8,
-        "reason": null
+        "reason": null,
+        "validation_status": "unresolved"
       }
     },
     "no_veh": {
@@ -1374,7 +1406,8 @@
       "aggregation": {
         "method": "universe_weighted",
         "min_coverage": 0.8,
-        "reason": null
+        "reason": null,
+        "validation_status": "unresolved"
       }
     },
     "transit": {
@@ -1400,7 +1433,8 @@
       "aggregation": {
         "method": "universe_weighted",
         "min_coverage": 0.8,
-        "reason": null
+        "reason": null,
+        "validation_status": "unresolved"
       }
     },
     "walk": {
@@ -1426,7 +1460,8 @@
       "aggregation": {
         "method": "universe_weighted",
         "min_coverage": 0.8,
-        "reason": null
+        "reason": null,
+        "validation_status": "unresolved"
       }
     },
     "age_65p": {
@@ -1452,7 +1487,8 @@
       "aggregation": {
         "method": "universe_weighted",
         "min_coverage": 0.8,
-        "reason": null
+        "reason": null,
+        "validation_status": "unresolved"
       }
     },
     "age_18_64": {
@@ -1478,7 +1514,8 @@
       "aggregation": {
         "method": "universe_weighted",
         "min_coverage": 0.8,
-        "reason": null
+        "reason": null,
+        "validation_status": "unresolved"
       }
     },
     "med_age": {
@@ -1497,7 +1534,8 @@
       "aggregation": {
         "method": "not_aggregable",
         "min_coverage": null,
-        "reason": "Median age; medians do not aggregate as weighted means of tract rates."
+        "reason": "Median age; medians do not aggregate as weighted means of tract rates.",
+        "validation_status": "not_applicable"
       }
     },
     "single_p": {
@@ -1523,7 +1561,8 @@
       "aggregation": {
         "method": "universe_weighted",
         "min_coverage": 0.8,
-        "reason": null
+        "reason": null,
+        "validation_status": "unresolved"
       }
     },
     "live_alon_65": {
@@ -1549,7 +1588,8 @@
       "aggregation": {
         "method": "universe_weighted",
         "min_coverage": 0.8,
-        "reason": null
+        "reason": null,
+        "validation_status": "unresolved"
       }
     },
     "hh_size": {
@@ -1576,7 +1616,8 @@
       "aggregation": {
         "method": "universe_weighted",
         "min_coverage": 0.8,
-        "reason": null
+        "reason": null,
+        "validation_status": "unresolved"
       }
     },
     "married": {
@@ -1602,7 +1643,8 @@
       "aggregation": {
         "method": "universe_weighted",
         "min_coverage": 0.8,
-        "reason": null
+        "reason": null,
+        "validation_status": "unresolved"
       }
     },
     "hisp": {
@@ -1628,7 +1670,8 @@
       "aggregation": {
         "method": "universe_weighted",
         "min_coverage": 0.8,
-        "reason": null
+        "reason": null,
+        "validation_status": "unresolved"
       }
     },
     "black": {
@@ -1654,7 +1697,8 @@
       "aggregation": {
         "method": "universe_weighted",
         "min_coverage": 0.8,
-        "reason": null
+        "reason": null,
+        "validation_status": "unresolved"
       }
     },
     "white": {
@@ -1680,7 +1724,8 @@
       "aggregation": {
         "method": "universe_weighted",
         "min_coverage": 0.8,
-        "reason": null
+        "reason": null,
+        "validation_status": "unresolved"
       }
     },
     "asian": {
@@ -1706,7 +1751,8 @@
       "aggregation": {
         "method": "universe_weighted",
         "min_coverage": 0.8,
-        "reason": null
+        "reason": null,
+        "validation_status": "unresolved"
       }
     },
     "foreign_born": {
@@ -1732,7 +1778,8 @@
       "aggregation": {
         "method": "universe_weighted",
         "min_coverage": 0.8,
-        "reason": null
+        "reason": null,
+        "validation_status": "unresolved"
       }
     },
     "lang_span": {
@@ -1760,7 +1807,8 @@
       "aggregation": {
         "method": "universe_weighted",
         "min_coverage": 0.8,
-        "reason": null
+        "reason": null,
+        "validation_status": "unresolved"
       }
     }
   }
