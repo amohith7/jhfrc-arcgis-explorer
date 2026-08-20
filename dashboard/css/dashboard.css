@@ -138,6 +138,23 @@
     .reliability.some { background: rgba(253,183,54,0.10); color: #92650b; border: 1px solid rgba(253,183,54,0.45); }
     .reliability.low  { background: rgba(220,38,38,0.06); color: #7a1414; border: 1px solid rgba(220,38,38,0.30); }
 
+    /* Task #129 — inline CV chip on Compare Counties cells. Same
+       neutral three-tier idea as .reliability but sized to sit
+       inside a numeric table cell without wrapping. Values 25-40%
+       CV get "elevated" (still shown, but flagged); >40% is
+       suppressed at build time and never reaches the chip path. */
+    .reliab-chip {
+      display: inline-block;
+      font-size: 9px; font-weight: 600;
+      padding: 0 4px; border-radius: 3px;
+      margin-left: 4px; vertical-align: middle;
+      letter-spacing: 0.02em;
+      cursor: help;
+    }
+    .reliab-chip.reliab-high     { background: var(--gray-100); color: var(--gray-700); border: 1px solid var(--gray-300); }
+    .reliab-chip.reliab-moderate { background: rgba(253,183,54,0.10); color: #92650b; border: 1px solid rgba(253,183,54,0.45); }
+    .reliab-chip.reliab-elevated { background: rgba(220,38,38,0.08); color: #7a1414; border: 1px solid rgba(220,38,38,0.35); }
+
     /* Tract click-through side panel (task #132) — overlays the map
        on the right. Slides in when a tract is clicked. Focused card
        for one tract + selected indicator, not the 61-field dump. */
