@@ -80,7 +80,7 @@ PLACES_COUNTY_API = "https://data.cdc.gov/resource/swc5-untb.json"
 # For PLACES: key = "short_question_text" as returned by the CDC API
 # with datavaluetypeid=CrdPrv (crude prevalence, ages 18+).
 PLACES_LABEL_MAP = {
-    # XML label                                    CDC short_question_text
+    # XML label                                         CDC short_question_text (2024 release short form)
     "Diabetes (%)": "Diabetes",
     "Obesity (%)": "Obesity",
     "Asthma (%)": "Current Asthma",
@@ -88,28 +88,33 @@ PLACES_LABEL_MAP = {
     "Coronary Heart Disease (%)": "Coronary Heart Disease",
     "High Blood Pressure (%)": "High Blood Pressure",
     "High Cholesterol (%)": "High Cholesterol",
-    "Chronic Obstructive Pulmonary Disease (COPD) (%)": "Chronic Obstructive Pulmonary Disease",
+    "Chronic Obstructive Pulmonary Disease (COPD) (%)": "COPD",
     "Stroke (%)": "Stroke",
-    "Smoking (%)": "Current Smoking",
+    "Smoking (%)": "Current Cigarette Smoking",
     "Binge Drinking (%)": "Binge Drinking",
-    "Obesity (%)": "Obesity",
-    "Cancer (Excluding Skin) (%)": "Cancer (excluding skin cancer)",
-    "Poor Physical Health (≥14 Days) (%)": "Physical Health Not Good for >=14 Days",
-    "Poor Mental Health (≥14 Days) (%)": "Mental Health Not Good for >=14 Days",
-    "Fair/Poor Self-Reported Health (%)": "Fair or Poor Self-Rated Health Status",
-    "Sleeping Less than 7 Hours (%)": "Sleeping Less Than 7 Hours",
-    "Routine Checkup (%)": "Visits to Doctor for Routine Checkup Within the Past Year",
-    "Dental Visit (%)": "Visits to Dentist or Dental Clinic Among Adults Aged >=18 Years",
+    "Cancer (Excluding Skin) (%)": "Cancer (non-skin) or Melanoma",
+    "Poor Physical Health (≥14 Days) (%)": "Frequent Physical Distress",
+    "Poor Mental Health (≥14 Days) (%)": "Frequent Mental Distress",
+    "Fair/Poor Self-Reported Health (%)": "General Health",
+    "Sleeping Less than 7 Hours (%)": "Short Sleep Duration",
+    "Routine Checkup (%)": "Annual Checkup",
+    "Dental Visit (%)": "Dental Visit",
     "Cholesterol Screening (%)": "Cholesterol Screening",
-    "Colorectal Cancer Screening (%)": "Colorectal Cancer Screening Among Adults Aged 50-75 Years",
-    "Mammography (Ages 50–74) (%)": "Mammography Use Among Women Aged 50-74 Years",
-    "Taking Blood Pressure Medication(%)": "Taking Medicine to Control High Blood Pressure",
-    "Taking Blood Pressure Medication (%)": "Taking Medicine to Control High Blood Pressure",
-    "No Leisure-Time Physical Activity(%)": "No Leisure-Time Physical Activity",
-    "No Leisure-Time Physical Activity (%)": "No Leisure-Time Physical Activity",
-    "All Teeth Lost (Ages 65+) (%)": "All Teeth Lost Among Adults Aged >=65 Years",
-    # Disability breakouts — PLACES doesn't publish these directly;
-    # skipped here, patched below via ACS.
+    "Colorectal Cancer Screening (%)": "Colorectal Cancer Screening",
+    "Mammography (Ages 50–74) (%)": "Mammography",
+    "Taking Blood Pressure Medication(%)": "High Blood Pressure Medication",
+    "Taking Blood Pressure Medication (%)": "High Blood Pressure Medication",
+    "No Leisure-Time Physical Activity(%)": "Physical Inactivity",
+    "No Leisure-Time Physical Activity (%)": "Physical Inactivity",
+    "All Teeth Lost (Ages 65+) (%)": "All Teeth Lost",
+    "Uninsured (Ages 18–64) (%)": "Health Insurance",
+    "Any Disability (%)": "Any Disability",
+    "Hearing Disability (%)": "Hearing Disability",
+    "Vision Disability (%)": "Vision Disability",
+    "Cognitive Disability (%)": "Cognitive Disability",
+    "Mobility Disability (%)": "Mobility Disability",
+    "Self-Care Disability (%)": "Self-care Disability",
+    "Independent Living Disability (%)": "Independent Living Disability",
 }
 
 
@@ -151,9 +156,15 @@ def build_county_means(df, county_fips: str) -> dict:
 
 
 def fetch_places_county(state_fips: str, county_fips3: str) -> dict:
-    """Return {short_question_text: data_value} for one county from CDC."""
+    """Return {short_question_text: data_value} for one county from CDC.
+
+    PLACES county API (swc5-untb) uses `locationid` (5-digit combined
+    county FIPS) and `stateabbr` (2-letter). NOT `statefips` /
+    `countyfips` — that's the tract-level dataset schema.
+    """
+    location_id = f"{state_fips}{county_fips3}"
     params = {
-        "$where": f"statefips='{state_fips}' AND countyfips='{county_fips3}' AND datavaluetypeid='CrdPrv'",
+        "$where": f"locationid='{location_id}' AND datavaluetypeid='CrdPrv'",
         "$select": "short_question_text,data_value",
         "$limit": "500",
     }
@@ -208,7 +219,7 @@ def _fmt_value_for_xml(v, label: str) -> str:
         return f"${round(v):,}"
     if label.strip().endswith("(%)"):
         return f"{v:.1f}"
-    if "Median Year Built" in label:
+    if "Median Year Built" in label or label.strip() == "Median Age":
         return f"{int(round(v))}"
     if "Gini" in label:
         return f"{v:.4f}"
@@ -277,22 +288,28 @@ def main(argv=None) -> int:
 
     total = {"acs": 0, "places": 0, "skip": 0, "files": 0}
     for fips, name in PILOT_COUNTIES.items():
-        # Find the county XML
+        # Find ALL county XMLs — community-profiles emits into both
+        # TN_<County>/ and TN_<County>_InDesign_Package/. Patch BOTH so
+        # whichever downstream tools read either variant see corrected values.
         candidates = list(OUTPUT_ROOT.glob(f"*/{name}_County_Community_Profiles.xml"))
         if not candidates:
             print(f"  {name} ({fips}): NO XML FOUND (skipping)")
             continue
-        xml_path = candidates[0]
-        n_acs, n_places, n_skip = patch_one_county(
-            xml_path, fips, df, places, dry_run=args.dry_run,
-        )
-        total["acs"] += n_acs
-        total["places"] += n_places
-        total["skip"] += n_skip
-        total["files"] += 1
+        cty_acs = cty_places = cty_skip = 0
+        for xml_path in candidates:
+            n_acs, n_places, n_skip = patch_one_county(
+                xml_path, fips, df, places, dry_run=args.dry_run,
+            )
+            cty_acs += n_acs
+            cty_places += n_places
+            cty_skip += n_skip
+            total["files"] += 1
+        total["acs"] += cty_acs
+        total["places"] += cty_places
+        total["skip"] += cty_skip
         marker = "(DRY)" if args.dry_run else "(written)"
         print(
-            f"  {name:12} {fips}: ACS {n_acs} + PLACES {n_places} patched, {n_skip} skipped {marker}"
+            f"  {name:12} {fips}: {len(candidates)} XML(s), ACS {cty_acs} + PLACES {cty_places} patched, {cty_skip} skipped {marker}"
         )
 
     print("\n--- summary ---")
