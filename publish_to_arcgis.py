@@ -112,9 +112,24 @@ def publish(
         # Dashboard that already references this layer.
         from arcgis.features import FeatureLayerCollection
 
+        # AGOL's overwrite() rejects mismatched filenames: "The name
+        # and extension of the file must be the same as the original
+        # data." The originally-uploaded file was named after the
+        # slugified title (jhfrc_tracts_v7.gpkg), so copy the current
+        # artifact to that same name before overwriting.
+        import re as _re
+        import shutil as _shutil
+
+        safe = _re.sub(r"[^A-Za-z0-9]+", "_", title).strip("_").lower()
+        upload_name = f"{safe}{upload.suffix}"
+        upload_tmp = upload.with_name(upload_name)
+        if upload_tmp.resolve() != upload.resolve():
+            _shutil.copy2(str(upload), str(upload_tmp))
+            print(f"  Copied artifact for overwrite: {upload.name} -> {upload_name}")
+
         flc = FeatureLayerCollection.fromitem(existing)
         try:
-            result = flc.manager.overwrite(str(upload))
+            result = flc.manager.overwrite(str(upload_tmp))
             print(f"  Overwrite ok: {result}")
         except Exception as e:
             raise SystemExit(f"Overwrite failed: {e}")

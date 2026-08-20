@@ -56,8 +56,10 @@ OUT_PATH = DATA / "acs_universes.parquet"
 PILOT_STATE_FIPS = ["47", "13", "01", "37"]  # TN, GA, AL, NC
 DEFAULT_VINTAGE = "2020-2024"
 VINTAGE_TO_YEAR = {
-    "2020-2024": 2023,  # ACS 5-year 2024 release = /2023/acs/acs5
-    "2015-2019": 2019,  # ACS 5-year 2019 release = /2019/acs/acs5
+    # ACS 5-year releases: the endpoint year is the LATEST year in the
+    # 5-year span. 2020-2024 release lives at /2024/acs/acs5.
+    "2020-2024": 2024,
+    "2015-2019": 2019,
 }
 ACS_VAR_RE = re.compile(r"^B\d{5}_\d{3}[EM]$")
 
