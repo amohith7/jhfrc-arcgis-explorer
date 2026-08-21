@@ -366,23 +366,55 @@ def apply_authoritative_county_benchmarks(rows: list[dict], data_dir: Path) -> N
 
     print(f"\nJoining direct-county benchmarks from {parquet.name} ...")
     cdf = pd.read_parquet(parquet)
-    lookup: dict[tuple[str, str], float] = {}
+    # value + MOE keyed by (county_fips, indicator_id). MOE is None
+    # for indicators where the tool couldn't derive one.
+    lookup: dict[tuple[str, str], tuple[float, float | None]] = {}
     for r in cdf.itertuples(index=False):
         v = getattr(r, "value", None)
         if v is None or (isinstance(v, float) and np.isnan(v)):
             continue
-        lookup[(str(r.county_fips).zfill(5), str(r.indicator_id))] = float(v)
+        m = getattr(r, "moe", None)
+        m_f = (
+            float(m)
+            if (m is not None and not (isinstance(m, float) and np.isnan(m)))
+            else None
+        )
+        lookup[(str(r.county_fips).zfill(5), str(r.indicator_id))] = (float(v), m_f)
 
+    # Reliability rule (task #129): if CV = MOE / (1.645 * |value|) > 40%,
+    # the county estimate is too imprecise to publish. Blank the value
+    # (falls back to universe-weighted aggregation or blank downstream)
+    # and record the CV so consumers can surface a chip.
+    CV_MAX = 0.40
     n_replaced = n_unchanged = n_no_recipe = n_no_data = 0
+    n_suppressed_cv = n_moe_populated = 0
     for row in rows:
         short = label_to_short.get(_norm_label(row["indicator_name"]))
         if not short:
             n_no_recipe += 1
             continue
-        val = lookup.get((row["county_fips"], short))
-        if val is None:
+        hit = lookup.get((row["county_fips"], short))
+        if hit is None:
             n_no_data += 1
             continue
+        val, moe = hit
+        # Compute CV where MOE is available; suppress if too imprecise.
+        cv = None
+        if moe is not None and val is not None and val != 0:
+            cv = moe / (1.645 * abs(val))
+            if cv > CV_MAX:
+                # Publish MOE + CV even when suppressing, so the
+                # dashboard can render "suppressed for high uncertainty"
+                # instead of "no data".
+                row["county_moe"] = moe
+                row["county_cv"] = cv
+                row["county_avg"] = None
+                n_suppressed_cv += 1
+                continue
+        row["county_moe"] = moe
+        row["county_cv"] = cv
+        if moe is not None:
+            n_moe_populated += 1
         old = row.get("county_avg")
         row["county_avg"] = val
         if old is None or (isinstance(old, float) and np.isnan(old)) or old != val:
@@ -391,6 +423,8 @@ def apply_authoritative_county_benchmarks(rows: list[dict], data_dir: Path) -> N
             n_unchanged += 1
     print(
         f"  replaced: {n_replaced:,} rows | unchanged: {n_unchanged:,} | "
+        f"suppressed CV>40%: {n_suppressed_cv:,} | "
+        f"MOE populated: {n_moe_populated:,} | "
         f"no dict match: {n_no_recipe:,} | not in cache: {n_no_data:,}"
     )
 

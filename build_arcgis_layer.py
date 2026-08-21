@@ -233,7 +233,17 @@ def wide_pivot(long_df: "pd.DataFrame") -> "pd.DataFrame":  # type: ignore  # no
         ("county_avg", "_county"),
         ("state_avg", "_state"),
         ("us_avg", "_us"),
+        # Task #129: MOE + CV plumbed through so the dashboard can
+        # render a reliability chip and honour the CV>40% suppression
+        # rule already applied at build time (task #124 wire-in).
+        # county_moe / county_cv are added by
+        # build_rollout_dataset.apply_authoritative_county_benchmarks()
+        # from data/county_benchmarks_tn.parquet.
+        ("county_moe", "_moe_county"),
+        ("county_cv", "_cv_county"),
     ):
+        if src_col not in hl.columns:
+            continue
         bench = hl.pivot_table(
             index=keep_cols, columns="short", values=src_col, aggfunc="first",
         ).reset_index()
