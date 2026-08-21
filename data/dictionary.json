@@ -1,9 +1,9 @@
 {
   "_meta": {
     "schema_version": 1,
-    "layer_name": "jhfrc_tracts_v13",
-    "layer_url": "https://services.arcgis.com/UnTXoPXBYERF0OH6/arcgis/rest/services/jhfrc_tracts_v13/FeatureServer/0",
-    "layer_item_id": "33875f87e61640a6a1065dd1f569987e",
+    "layer_name": "jhfrc_tracts_v14",
+    "layer_url": "https://services.arcgis.com/UnTXoPXBYERF0OH6/arcgis/rest/services/jhfrc_tracts_v14/FeatureServer/0",
+    "layer_item_id": "8824b331713e4f369fb959cfebb9898b",
     "source_item_id": "",
     "generated_for": "JHFRC Regional Explorer",
     "notes": "Per-indicator metadata for the info-icon in the dashboard UI (Brief 3 F1) and for CSV export provenance (Brief 3 D4). Every indicator carries source, table/measure id, universe, why-it-matters, main limitation, and state + national reference values. ACS reference values are 2020-2024 unless otherwise noted. PLACES reference values are 2024 release, model-based estimates. Values are approximate and intended for interpretation, not for citation without independent verification.",
